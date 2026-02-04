@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.concurrent.*;
 
+// TODO Create clientside script and have it communicate with serverside script.
+
 class prompt_homepage_GUI{
     //Makes the CLI interface pop up for the user where they are presented with 2 options. 1) Create server. 2) Join server.
     static int run(){
@@ -43,16 +45,30 @@ class Server{
     }
     
     private static void initialise_server(String serverIpAddress, Integer serverPort) throws IOException{
-        //THIS IS WHERE THE CODE TO CREATE THE SERVER WOULD BE WRITTEN.
-         System.out.println("SERVER LAUNCHING ON IP ADDRESS: " + serverIpAddress + " USING PORT " + serverPort);
+        //THIS IS WHERE THE CODE TO CREATE THE SERVER IS BE WRITTEN.
+        
+        System.out.println("SERVER LAUNCHING ON IP ADDRESS: " + serverIpAddress + " USING PORT " + serverPort);
 
-        //Stores the different usernames in a set so we can reject users who attempt to join the chat using the same name as someone else.
-        //private static Set<String> usernames = new HashSet<>(); IN COMMENTS BECAUSE UNUSED RN
-
-        try (ServerSocket coordinator = new ServerSocket(serverPort)){
+        try {
+            ServerSocket coordinator = new ServerSocket(serverPort);
             while (true){
-                //coordinator.accept(); COMMENTED OUT BECAUSE CURRENTLY INCOMPLETE
+                try (
+                    Socket clientSocket = coordinator.accept();
+                    PrintWriter sendToClient = new PrintWriter(clientSocket.getOutputStream(), true)
+                ) {
+
+                    //We can view information about the client using clientSocket
+                    System.out.println("Connection established with client " + clientSocket.getLocalAddress().getHostAddress());
+                    
+                    //We can use sendToClient to send data to the client.
+                    sendToClient.println("Connection established from server coordinator " + get_ip_address());
+                    
+                
+                }
             }
+        } catch (Exception e){
+            System.err.println("The server was unable to launch succesfully: " + e + " \nEXITING (in the future, 'please try again' will be used.)");
+            System.exit(6);
         }
     } 
 
