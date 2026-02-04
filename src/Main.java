@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.concurrent.*;
 
-// TODO Create clientside script and have it communicate with serverside script.
 
 class prompt_homepage_GUI{
     //Makes the CLI interface pop up for the user where they are presented with 2 options. 1) Create server. 2) Join server.
@@ -42,6 +41,23 @@ class Server{
     private static void attempt_to_join_server(String ip_Address, int serverPort){
         System.out.println("ATTEMPTING TO JOIN SERVER AT IP: " + ip_Address + " ON PORT " + serverPort);
 
+        try {
+            Socket clientsideSocket = new Socket(ip_Address, serverPort);
+            Scanner recievedFromServer = new Scanner(clientsideSocket.getInputStream());
+            PrintWriter sendToServer = new PrintWriter(clientsideSocket.getOutputStream(), true);
+
+            //USE THIS TO RECIEVE A MESSAGE FROM THE SERVER
+            System.out.println("MESSAGE FROM SERVER: " + recievedFromServer.nextLine());
+
+            //USE THIS TO SEND A MESSAGE TO THE SERVER
+            sendToServer.println("Client " + ip_Address + " joined successfully.");
+            
+
+        } catch (Exception e) {
+            System.err.println("Could not connect to the server. Check your internet connection, IP & port.");
+            System.exit(7);
+        }
+
     }
     
     private static void initialise_server(String serverIpAddress, Integer serverPort) throws IOException{
@@ -53,15 +69,19 @@ class Server{
             ServerSocket coordinator = new ServerSocket(serverPort);
             while (true){
                 try (
-                    Socket clientSocket = coordinator.accept();
-                    PrintWriter sendToClient = new PrintWriter(clientSocket.getOutputStream(), true)
+                    Socket serversideSocket = coordinator.accept();
+                    PrintWriter sendToClient = new PrintWriter(serversideSocket.getOutputStream(), true);
+                    Scanner recieveFromClient = new Scanner(serversideSocket.getInputStream());
                 ) {
 
-                    //We can view information about the client using clientSocket
-                    System.out.println("Connection established with client " + clientSocket.getLocalAddress().getHostAddress());
+                    //We can view information about the client using serversideSocket
+                    System.out.println("Connection established with client " + serversideSocket.getLocalAddress().getHostAddress());
                     
                     //We can use sendToClient to send data to the client.
                     sendToClient.println("Connection established from server coordinator " + get_ip_address());
+                    
+                    //We can use this to recieve data from the clients.
+                    System.out.println("MESSAGE FROM CLIENT: " + recieveFromClient.nextLine());
                     
                 
                 }
