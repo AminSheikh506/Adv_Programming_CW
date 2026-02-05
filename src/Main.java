@@ -9,6 +9,61 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.concurrent.*;
 
+class ServerListener extends Thread{
+	private Scanner fromServer;
+	
+	public ServerListener(Scanner fromServer) {
+		this.fromServer = fromServer;
+	}
+	
+	@Override
+	public void run() {
+        while (fromServer.hasNextLine()) {
+            System.out.println(fromServer.nextLine());
+        }
+    }
+}
+class ClientThread implements Runnable{
+    private Socket socket;
+    private Scanner in;
+    private PrintWriter out;
+    private static Set<ClientHandler> clients =
+            ConcurrentHashMap.newKeySet();
+
+    public ClientThread (Socket socket) throws IOException{
+        this.socket = socket;
+        this.in = new Scanner(socket.getInputStream());
+        this.out = new PrintWriter(socket.getOutputStream(), true);
+    }
+    @Override
+    public void run(){
+        try{
+            clients.add(this);
+            out.println("test,has joined");
+            while (in.hasNextLine()){
+                String message = in.nextLine();
+                broadcast(message);
+            }
+        }
+        finally{
+            clients.remove(this);
+            socketClose();
+        }
+    }
+    private void broadcast(String message) {
+        for (ClientHandler client : clients) {
+            client.out.println(message);
+        }
+    }
+    private void socketClose() {
+        try {
+            socket.close();
+        } 
+        catch (IOException e) {
+            System.err.println("Error closing socket");
+        }
+    }
+}
 
 class prompt_homepage_GUI{
     //Makes the CLI interface pop up for the user where they are presented with 2 options. 1) Create server. 2) Join server.
@@ -42,15 +97,21 @@ class Server{
         System.out.println("ATTEMPTING TO JOIN SERVER AT IP: " + ip_Address + " ON PORT " + serverPort);
 
         try {
-            Socket clientsideSocket = new Socket(ip_Address, serverPort);
-            Scanner recievedFromServer = new Scanner(clientsideSocket.getInputStream());
-            PrintWriter sendToServer = new PrintWriter(clientsideSocket.getOutputStream(), true);
+            Socket socket = new Socket(ip_Address, serverPort);
 
-            //USE THIS TO RECIEVE A MESSAGE FROM THE SERVER
-            System.out.println("MESSAGE FROM SERVER: " + recievedFromServer.nextLine());
+            Scanner fromServer = new Scanner(socket.getInputStream());
+            PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true);
+            Scanner userInput = new Scanner(System.in);
 
-            //USE THIS TO SEND A MESSAGE TO THE SERVER
-            sendToServer.println("Client " + ip_Address + " joined successfully.");
+            // Start listening thread
+            new ServerListener(fromServer).start();
+
+            System.out.println("You can now start chatting:");
+
+            // Main thread sends messages
+            while (true) {
+                String message = userInput.nextLine();
+                toServer.println(message);
             
 
         } catch (Exception e) {
@@ -60,37 +121,23 @@ class Server{
 
     }
     
-    private static void initialise_server(String serverIpAddress, Integer serverPort) throws IOException{
-        //THIS IS WHERE THE CODE TO CREATE THE SERVER IS BE WRITTEN.
-        
+    private static void initialise_server(String serverIpAddress, Integer serverPort) throws IOException {
+
         System.out.println("SERVER LAUNCHING ON IP ADDRESS: " + serverIpAddress + " USING PORT " + serverPort);
 
-        try {
-            ServerSocket coordinator = new ServerSocket(serverPort);
-            while (true){
-                try (
-                    Socket serversideSocket = coordinator.accept();
-                    PrintWriter sendToClient = new PrintWriter(serversideSocket.getOutputStream(), true);
-                    Scanner recieveFromClient = new Scanner(serversideSocket.getInputStream());
-                ) {
+        ServerSocket coordinator = new ServerSocket(serverPort);
 
-                    //We can view information about the client using serversideSocket
-                    System.out.println("Connection established with client " + serversideSocket.getLocalAddress().getHostAddress());
-                    
-                    //We can use sendToClient to send data to the client.
-                    sendToClient.println("Connection established from server coordinator " + get_ip_address());
-                    
-                    //We can use this to recieve data from the clients.
-                    System.out.println("MESSAGE FROM CLIENT: " + recieveFromClient.nextLine());
-                    
-                
-                }
-            }
-        } catch (Exception e){
-            System.err.println("The server was unable to launch succesfully: " + e + " \nEXITING (in the future, 'please try again' will be used.)");
-            System.exit(6);
+        while (true) {
+            Socket clientSocket = coordinator.accept();
+
+            System.out.println("New client connected: " + clientSocket.getInetAddress().getHostAddress());
+
+            ClientThread client = new ClientThread(clientSocket);
+            Thread clientThread = new Thread(client);
+            clientThread.start();
         }
-    } 
+    }
+
 
     public static String get_ip_address() throws UnknownHostException {
         //Returns the private IP address of the user as a string. A seperate method was used to keep code clean.
