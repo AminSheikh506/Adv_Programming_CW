@@ -27,8 +27,9 @@ class ClientThread implements Runnable{
     private Socket socket;
     private Scanner in;
     private PrintWriter out;
-    private static Set<ClientHandler> clients =
-            ConcurrentHashMap.newKeySet();
+	private String username;
+    private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
+    
 
     public ClientThread (Socket socket) throws IOException{
         this.socket = socket;
@@ -38,22 +39,54 @@ class ClientThread implements Runnable{
     @Override
     public void run(){
         try{
-            clients.add(this);
-            out.println("test,has joined");
+			out.println("username:");
+        	username = in.nextLine();
+            clients.put(username,this);
+            broadcast(username + " has joined");
+            
             while (in.hasNextLine()){
                 String message = in.nextLine();
-                broadcast(message);
+                if (message.startsWith("dm")) {
+                	sendDirectMessage(message);
+                }
+                else {
+                	broadcast(username + ":" + message);
+                }
             }
         }
         finally{
-            clients.remove(this);
+            if (username != null) {
+        		clients.remove(username);
+        		broadcast(username + " has left the chat");
+        	}
             socketClose();
         }
     }
     private void broadcast(String message) {
-        for (ClientHandler client : clients) {
+        for (ClientHandler client : clients.values()) {
             client.out.println(message);
         }
+    }
+	private void sendDirectMessage(String message) {
+    	String[] splitMsg = message.split(" ",3);
+    	
+    	if (splitMsg.length < 3) {
+    		out.println("use this format: dm username message");
+    		return;
+    	}
+    	
+    	String user = splitMsg[1];
+    	String dm = splitMsg[2];
+    	
+    	ClientThread target = clients.get(user);
+    	
+    	if (target == null) {
+    		out.println("ok schizo, now type someone who exists");
+    		return;
+    	}
+    	
+    	target.out.println("DM: " + username + "- " + dm);
+    	out.println("DM to "+ user + "- "+ dm);
     }
     private void socketClose() {
         try {
