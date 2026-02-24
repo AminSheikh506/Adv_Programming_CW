@@ -63,7 +63,7 @@ class ClientThread implements Runnable{
         }
     }
     private void broadcast(String message) {
-        for (ClientHandler client : clients.values()) {
+        for (ClientThread client : clients.values()) {
             client.out.println(message);
         }
     }
@@ -145,6 +145,7 @@ class Server{
             while (true) {
                 String message = userInput.nextLine();
                 toServer.println(message);
+			}
             
 
         } catch (Exception e) {
