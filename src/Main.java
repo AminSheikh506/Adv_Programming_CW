@@ -28,6 +28,7 @@ class ClientThread implements Runnable{
     private Scanner in;
     private PrintWriter out;
 	private String username;
+	private boolean coordinator = false;
     private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
     
 
@@ -43,11 +44,27 @@ class ClientThread implements Runnable{
         	username = in.nextLine();
             clients.put(username,this);
             broadcast(username + " has joined");
+
+			if (clients.size() == 1) {
+            	coordinator = true;
+            	broadcast(username + " is the new coordinator");
+            }
+            else {
+            	this.out.println(getCoordinator().username + " is the coordinator");
+            }
             
             while (in.hasNextLine()){
                 String message = in.nextLine();
                 if (message.startsWith("dm")) {
                 	sendDirectMessage(message);
+                }
+				else if (message.startsWith("dox")) {
+                	if (coordinator == false) {
+                		this.out.println("only the coordinator (" + getCoordinator().username + ") can dox, please send them a request and they may give you the info");
+                	}
+                	else{
+                		sendInfo(message);
+                	}
                 }
                 else {
                 	broadcast(username + ":" + message);
@@ -58,15 +75,39 @@ class ClientThread implements Runnable{
             if (username != null) {
         		clients.remove(username);
         		broadcast(username + " has left the chat");
+				if (coordinator == true) {
+        			assignNewCoordinator();
+        		}
         	}
             socketClose();
         }
+    }
+	private ClientThread getCoordinator() {
+    	for (ClientThread client : clients.values()) {
+    		if (client.coordinator == true) {
+    			return(client);
+    		}
+    	}
+    	return(null);
     }
     private void broadcast(String message) {
         for (ClientThread client : clients.values()) {
             client.out.println(message);
         }
     }
+	private void assignNewCoordinator() {
+    	if (clients.size() == 0) {
+    		System.out.println("no viable members to become coordinator");
+    	}
+    	else {
+	        for (ClientThread client : clients.values()) {
+	            client.coordinator = true;
+	            broadcast(client.username + " is the new coordinator");
+	            break;
+	        }
+    	}
+    }
+	
 	private void sendDirectMessage(String message) {
     	String[] splitMsg = message.split(" ",3);
     	
@@ -88,6 +129,29 @@ class ClientThread implements Runnable{
     	target.out.println("DM: " + username + "- " + dm);
     	out.println("DM to "+ user + "- "+ dm);
     }
+	private void sendInfo(String message) {
+    	String[] splitMsg = message.split(" ",2);
+    	
+    	if (splitMsg.length < 2) {
+    		out.println("use this format,where username is the receiver: dox username");
+    		return;
+    	}
+    	String receiverName = splitMsg[1];
+    	ClientThread receiver = clients.get(receiverName);
+    	
+    	if (receiver == null) {
+    		out.println("you can't give info to someone whoe doesn't exist");
+    		return;
+    	}
+    	String fullInfo = "";
+    	String clientInfo = "";
+    	for (ClientThread client : clients.values()) {
+            clientInfo = client.username + "- \n" + "IP: " + client.socket.getInetAddress().getHostAddress() + "  Port: " + socket.getPort() + "\n \n";
+            fullInfo = fullInfo + clientInfo;
+        }
+    	receiver.out.println(fullInfo);
+
+	}
     private void socketClose() {
         try {
             socket.close();
