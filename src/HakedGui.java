@@ -73,6 +73,16 @@ public class HakedGui {
     // Every message that has been sent, we store it for future use
     final List<Message> messageHistory = new ArrayList<>();
 
+    // ===  User info window testing ===
+    // per user info lookup map
+    java.util.Map<String, UserInfo> userInfoMap = new java.util.HashMap<>();
+
+    // The coordinator's username
+    String coordinatorUsername = "";
+
+    // Port and IP captured from the connect screen also set to default
+    String sessionPort = "7000";
+    String sessionIp   = "127.0.0.1";
 
     //  SECTION 5 - MESSAGE CLASS
     //  One Message object created for every chat bubble or system notice.
@@ -91,7 +101,21 @@ public class HakedGui {
             this.isSystem = isSystem;
         }
     }
+    // === User info class window testing ===
+    // USERINFO CLASS
+    static class UserInfo {
+        String username;
+        String ip;
+        String port;
+        boolean isCoordinator;
 
+        UserInfo(String username, String ip, String port, boolean isCoordinator) {
+            this.username      = username;
+            this.ip            = ip;
+            this.port          = port;
+            this.isCoordinator = isCoordinator;
+        }
+    }
     // SECTION 6 - THEME INJECTION
     // Our applyTheme() method takes "Themes color" from section 01 and then we
     // Apply it to Swing Default GUI toolkit to get advance theme magagement of Buttons, Label, text field
@@ -588,6 +612,11 @@ public class HakedGui {
         proceedBtn.addActionListener(e -> {
             String typedUsername = usernameField.getText().trim();
             username = typedUsername;
+
+            // === User info window testing ===
+            sessionPort = portField.getText().trim();
+            sessionIp   = isCreating ? "127.0.0.1" : ipField.getText().trim();
+
             submitted[0] = true;
             dialog.dispose();
         });
@@ -748,6 +777,31 @@ public class HakedGui {
         userList.setFixedCellHeight(28);
         userList.setBorder(new EmptyBorder(4, 10, 4, 8));
 
+        // == Special ui implementation for user list ==
+        // track which index is under the mouse so we can highlight on hover
+        final int[] hoverIndex = {-1};
+        userList.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int idx = userList.locationToIndex(e.getPoint());
+                Rectangle cellBounds = (idx >= 0) ? userList.getCellBounds(idx, idx) : null;
+                if (cellBounds == null || !cellBounds.contains(e.getPoint())) {
+                    idx = -1;
+                }
+                if (idx != hoverIndex[0]) {
+                    hoverIndex[0] = idx;
+                    userList.repaint();
+                }
+            }
+        });
+        userList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseExited(MouseEvent e) {
+                hoverIndex[0] = -1;
+                userList.repaint();
+            }
+        });
+
         // Custom renderer for green dot + username
         userList.setCellRenderer((list, value, index, selected, focused) -> {
             JLabel dot = new JLabel("\u25CF"); // ● green dot icon
@@ -760,9 +814,27 @@ public class HakedGui {
 
             JPanel cell = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
             cell.setOpaque(false);
+
+            // highlight border when hovered 
+            if (index == hoverIndex[0]) {
+                cell.setBorder(new LineBorder(COL_ACCENT, 1, true));
+            }
             cell.add(dot);
             cell.add(name);
             return cell;
+        });
+
+        // === User info window testing ===
+        // Click listener single click on a name opens User info window
+        userList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int index = userList.locationToIndex(e.getPoint());
+                if (index >= 0) {
+                    String clicked = onlineUsersModel.getElementAt(index);
+                    showUserInfoPopup(clicked);
+                }
+            }
         });
 
         // Sidebar header above the list (ONLINE)
@@ -882,6 +954,19 @@ public class HakedGui {
 
         // Add the logged-in user to the sidebar
         onlineUsersModel.addElement(username);
+
+        // === User info window testing ===
+        // seed the users own UserINfo so the window works immediatly
+        // when merged, sever messages will populate other users
+
+        coordinatorUsername = isHostMode ? username : "";
+        userInfoMap.put(username, new UserInfo(
+                username,
+                sessionIp,
+                sessionPort,
+                isHostMode
+        ));
+
         // Broadcast "joined" system message
         addSystemMessage(username + " joined the chat.");
         // Give focus to the input field right away
@@ -1041,7 +1126,118 @@ public class HakedGui {
         drawSystemRow(text);
     }
 
+    // === User info window testing ===
+    //  USER INFO POPUP
+    void showUserInfoPopup(String clickedUsername) {
 
+        UserInfo info = userInfoMap.get(clickedUsername);
+        if (info == null) {
+            info = new UserInfo(clickedUsername, "Unknown", "Unknown", false);
+        }
+
+        boolean isCoord = info.isCoordinator;
+
+        JDialog dialog = new JDialog((Frame) null, true);
+        dialog.setUndecorated(true);
+        dialog.setBackground(BG_CHAT);
+
+        // Role colours — teal for coordinator, grey for member
+        Color roleColor  = isCoord ? COL_ACCENT : COL_HINT;
+        Color roleBg     = isCoord ? new Color(0x0D2A2E) : new Color(0x1C2333);
+        Color roleBorder = isCoord ? new Color(0x1A4A50) : COL_BORDER;
+        String roleText  = isCoord ? "COORDINATOR" : "MEMBER";
+
+        JLabel roleBadgeLabel = new JLabel(roleText, SwingConstants.CENTER);
+        roleBadgeLabel.setFont(FONT_SMALL.deriveFont(Font.BOLD));
+        roleBadgeLabel.setForeground(roleColor);
+
+        JPanel roleBadge = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 6));
+        roleBadge.setBackground(roleBg);
+        roleBadge.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(roleBorder, 1, true),
+                new EmptyBorder(4, 14, 4, 14)));
+        roleBadge.add(roleBadgeLabel);
+        roleBadge.setAlignmentX(0.5f);
+        roleBadge.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                roleBadge.getPreferredSize().height));
+
+        JLabel atLabel = new JLabel("@" + info.username, SwingConstants.CENTER);
+        atLabel.setFont(FONT_TITLE);
+        atLabel.setForeground(COL_TEXT);
+        atLabel.setAlignmentX(0.5f);
+
+        // Info card with IP and Port rows
+        JPanel infoCard = new JPanel(new GridLayout(2, 1, 0, 10));
+        infoCard.setBackground(BG_INPUT);
+        infoCard.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(COL_BORDER, 1, true),
+                new EmptyBorder(16, 18, 16, 18)));
+        infoCard.setAlignmentX(0.5f);
+        infoCard.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                infoCard.getPreferredSize().height + 60));
+        infoCard.add(makeInfoRow("\uD83C\uDF10  IP ADDRESS", info.ip));
+        infoCard.add(makeInfoRow("\u26A1  PORT",             info.port));
+
+        JButton closeBtn = makePillButton("CLOSE  \u2715", new Color(0x374151), 120, 38);
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        btnRow.setOpaque(false);
+        btnRow.add(closeBtn);
+        btnRow.setAlignmentX(0.5f);
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        JPanel root = new JPanel();
+        root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
+        root.setBackground(BG_CHAT);
+        root.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(roleColor, 1, true),
+                new EmptyBorder(28, 32, 24, 32)));
+        root.add(roleBadge);
+        root.add(Box.createVerticalStrut(12));
+        root.add(atLabel);
+        root.add(Box.createVerticalStrut(18));
+        root.add(infoCard);
+        root.add(Box.createVerticalStrut(20));
+        root.add(btnRow);
+
+        // Drag to move
+        Point[] dragStart = {null};
+        root.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
+        });
+        root.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                Point pos = dialog.getLocation();
+                dialog.setLocation(
+                        pos.x + e.getX() - dragStart[0].x,
+                        pos.y + e.getY() - dragStart[0].y);
+            }
+        });
+
+        dialog.add(root);
+        dialog.pack();
+        dialog.setMinimumSize(new Dimension(320, dialog.getHeight()));
+        dialog.setLocationRelativeTo(MainChatWindow);
+        dialog.setVisible(true);
+    }
+
+    // Helper — two-line label row (caption above, value below)
+    private JPanel makeInfoRow(String caption, String value) {
+        JLabel captionLabel = new JLabel(caption);
+        captionLabel.setFont(FONT_SMALL.deriveFont(Font.BOLD));
+        captionLabel.setForeground(COL_HINT);
+
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(FONT_BOLD);
+        valueLabel.setForeground(COL_TEXT);
+
+        JPanel row = new JPanel(new BorderLayout(0, 3));
+        row.setOpaque(false);
+        row.add(captionLabel, BorderLayout.NORTH);
+        row.add(valueLabel,   BorderLayout.CENTER);
+        return row;
+    }
 
     //  SECTION 12 — EXIT METHOD
     void exitApp() {
