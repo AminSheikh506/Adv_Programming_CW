@@ -33,6 +33,7 @@ class ClientThread implements Runnable{
     private Scanner in;
     private PrintWriter out;
 	private String username;
+	private boolean active = true;
 	private boolean coordinator = false;
     private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
     
@@ -58,6 +59,9 @@ class ClientThread implements Runnable{
                 if (currentCoord != null) {
                     out.println("system The current coordinator is " + currentCoord.username);
                 }
+            }
+			if (coordinator) {
+                Ping();
             }
 
             //Server sends the Username, IP and PORT when a new user joins to the coordinator directly.
@@ -101,6 +105,20 @@ class ClientThread implements Runnable{
             socketClose();
         }
     }
+	private void Ping() {
+    	
+        try {
+        	Thread.sleep(20000); // 20 seconds
+        } catch (InterruptedException e) {
+            return;
+        }
+        
+        for (ClientThread client : clients.values()) {
+        	client.active = false;
+        	client.out.println("you have been made inactive. message to become active");
+        }
+        
+    }
 	private ClientThread getCoordinator() {
     	for (ClientThread client : clients.values()) {
     		if (client.coordinator == true) {
@@ -111,6 +129,7 @@ class ClientThread implements Runnable{
     }
 
     private void broadcast(String message) {
+		this.active = true;
         for (ClientThread client : clients.values()) {
             client.out.println(message);}
     }
@@ -153,10 +172,11 @@ class ClientThread implements Runnable{
     	ClientThread target = clients.get(user);
     	
     	if (target == null) {
-    		out.println("system ok schizo, now type someone who exists");
+    		out.println("system that isn't a valid target");
     		return;
     	}
-    	
+		
+		this.active = true;
     	target.out.println("DM: " + username + "- " + dm);
     	out.println("DM to "+ user + "- "+ dm);
     }
@@ -392,3 +412,4 @@ public class ClientServer {
         assert (user_selection != "create" || user_selection != "join"): "The GUI did not catch incorrect input. The program should have never reached here.";
     }
 }
+
