@@ -15,15 +15,24 @@ import java.util.concurrent.*;
 
 class ServerListener extends Thread{
 	private Scanner fromServer;
+	private PrintWriter toServer;
 	
-	public ServerListener(Scanner fromServer) {
+	public ServerListener(Scanner fromServer, PrintWriter toServer) {
 		this.fromServer = fromServer;
+		this.toServer = toServer;
 	}
 	
 	@Override
 	public void run() {
         while (fromServer.hasNextLine()) {
-            System.out.println(fromServer.nextLine());
+			String message = fromServer.nextLine();
+			
+			if (message.equals("ping")) {
+                toServer.println("pong");   
+                continue;
+            }
+            System.out.println(message);
+			
         }
     }
 }
@@ -33,6 +42,7 @@ class ClientThread implements Runnable{
     private Scanner in;
     private PrintWriter out;
 	private String username;
+	private long lastPong = System.currentTimeMillis();
 	private boolean coordinator = false;
     private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
     
@@ -60,7 +70,8 @@ class ClientThread implements Runnable{
                 coordinator = true;
                 broadcast("coord " + username);
                 System.out.println("[SERVER] " + username + " is the coordinator");
-            } else {
+            	ping();
+			} else {
                 ClientThread currentCoord = getCoordinator();
                 if (currentCoord != null) {
                     out.println("system The current coordinator is " + currentCoord.username);
@@ -73,7 +84,12 @@ class ClientThread implements Runnable{
 
             while (in.hasNextLine()){
                 String message = in.nextLine();
-                if (message.startsWith("dm")) {
+				if (message.equals("pong")) {
+                	System.out.println(username+": pong");
+                	lastPong = System.currentTimeMillis();
+                }
+				
+                else if (message.startsWith("dm")) {
                     sendDirectMessage(message);
                 }
                 else if (message.startsWith("system")){
@@ -99,6 +115,36 @@ class ClientThread implements Runnable{
         	}
             socketClose();
         }
+    }
+	private void ping() {
+
+        Thread pingThread = new Thread(() -> {
+            while (this.coordinator) {
+                try {
+                    Thread.sleep(20000); 
+                } catch (InterruptedException e) {
+                    return;
+                }
+
+                for (ClientThread client : clients.values()) {
+                    if(client.coordinator == false) {
+                    	client.out.println("ping");
+                    	
+                    	if (System.currentTimeMillis() - client.lastPong > 40000) {
+                    		
+                    		clients.remove(client.username);
+                            System.out.println("Client " + client.username + " timed out.");
+                            broadcast(username + " has left the chat");
+
+                            try {
+                                client.socketClose();
+                            } catch (Exception e) {}
+						}
+                    }   
+                }
+			}
+        });
+        pingThread.start();
     }
 	private ClientThread getCoordinator() {
     	for (ClientThread client : clients.values()) {
@@ -152,7 +198,7 @@ class ClientThread implements Runnable{
     	ClientThread target = clients.get(user);
     	
     	if (target == null) {
-    		out.println("system ok schizo, now type someone who exists");
+    		out.println("system ok schizo, now type someone who exists"); //deja vu
     		return;
     	}
     	
