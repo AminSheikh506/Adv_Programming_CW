@@ -76,6 +76,7 @@ public class Gui {
 
     // GUI components we need to reference from multiple methods
     JFrame MainChatWindow;                     // the main chat window (screen 3)
+    JFrame serverWindow;                       // The server GUI window
     JPanel bubbleContainer;                    // panel that holds all chat bubbles
     JScrollPane chatScroll;                    // scroll pane around bubbleContainer
     DefaultListModel<String> onlineUsersModel; // For online user list
@@ -890,7 +891,7 @@ public class Gui {
     //  SECTION 10B - SERVER MONITOR WINDOW
     void showServerWindow() {
 
-        JFrame serverWindow = new JFrame();
+        serverWindow = new JFrame();
         serverWindow.setUndecorated(true);
         serverWindow.setBackground(new Color(0, 0, 0, 0));
         serverWindow.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -1424,6 +1425,10 @@ public class Gui {
     // SECTION 16 - RETURNS TO THE MAIN MENU IF USER INPUTS INCORRECT VALUES.
     public void returnToCreateScreen() {
         SwingUtilities.invokeLater(() -> {
+            if (serverWindow != null) {
+                serverWindow.dispose();
+                serverWindow = null;
+            }
             if (MainChatWindow != null) {
                 MainChatWindow.dispose();
                 MainChatWindow = null;

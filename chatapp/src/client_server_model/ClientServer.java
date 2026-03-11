@@ -42,7 +42,7 @@ class ClientThread implements Runnable{
     private Scanner in;
     private PrintWriter out;
 	private String username;
-	private long lastPong = System.currentTimeMillis();
+	private long lastPong = System.currentTimeMillis(); //
 	private boolean coordinator = false;
     private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
     
@@ -69,7 +69,7 @@ class ClientThread implements Runnable{
 			if (clients.size() == 1) {
                 coordinator = true;
                 broadcast("coord " + username);
-                System.out.println("[SERVER] " + username + " is the coordinator");
+                System.out.println("[CLIENTSERVER] " + username + " is the coordinator");
             	ping();
 			} else {
                 ClientThread currentCoord = getCoordinator();
@@ -85,11 +85,11 @@ class ClientThread implements Runnable{
             while (in.hasNextLine()){
                 String message = in.nextLine();
 				if (message.equals("pong")) {
-                	System.out.println(username+": pong");
-                	lastPong = System.currentTimeMillis();
+                    System.out.println("[CLIENTSERVER] Pong received from: " + username);
+                    lastPong = System.currentTimeMillis();
                 }
 				
-                else if (message.startsWith("dm")) {
+                else if (message.startsWith("/dm")) {
                     sendDirectMessage(message);
                 }
                 else if (message.startsWith("system")){
@@ -117,35 +117,47 @@ class ClientThread implements Runnable{
         }
     }
 	private void ping() {
-
         Thread pingThread = new Thread(() -> {
             while (this.coordinator) {
+                long pingSentAt = System.currentTimeMillis();
+                //Sends a ping to all non-coordinator clients
+                for (ClientThread client : clients.values()) {
+                    if (!client.coordinator) {
+                        client.out.println("ping");
+                    }
+                }
+
+                //Waits 3 secs for pongs to arrive, used because it takes a little while for a pong to come through (and causes premature server shutdown).
                 try {
-                    Thread.sleep(20000); 
+                    Thread.sleep(3000);
                 } catch (InterruptedException e) {
                     return;
                 }
 
-                for (ClientThread client : clients.values()) {
-                    if(client.coordinator == false) {
-                    	client.out.println("ping");
-                    	
-                    	if (System.currentTimeMillis() - client.lastPong > 40000) {
-                    		
-                    		clients.remove(client.username);
-                            System.out.println("Client " + client.username + " timed out.");
-                            broadcast(username + " has left the chat");
-
-                            try {
-                                client.socketClose();
-                            } catch (Exception e) {}
-						}
-                    }   
+                //Check who hasn't responded since the ping was sent
+                long deadline = System.currentTimeMillis() - 3000;
+                for (ClientThread client : new java.util.ArrayList<>(clients.values())) {
+                    if (!client.coordinator && client.lastPong < pingSentAt) {
+                        System.out.println("[CLIENTSERVER] " + client.username + " timed out, removing.");
+                        clients.remove(client.username);
+                        broadcast("system " + client.username + " has left the chat");
+                        sendToCoordinator("depart " + client.username);
+                        try { client.socketClose(); } catch (Exception ignored) {}
+                    }
                 }
-			}
+
+                //Waits before sending the next ping (coursework gives 20sec as an example)
+                try {
+                    Thread.sleep(7000);
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
         });
+        pingThread.setDaemon(true);
         pingThread.start();
     }
+
 	private ClientThread getCoordinator() {
     	for (ClientThread client : clients.values()) {
     		if (client.coordinator == true) {
@@ -170,13 +182,13 @@ class ClientThread implements Runnable{
 
 	private void assignNewCoordinator() {
     	if (clients.size() == 0) {
-    		System.out.println("system no viable members to become coordinator");
+    		System.out.println("[CLIENTSERVER] no viable members to become coordinator");
     	}
     	else {
 	        for (ClientThread client : clients.values()) {
 	            client.coordinator = true;
                 broadcast("coord " + client.username);
-                System.out.println("[SERVER] " + client.username + " is the new coordinator");
+                System.out.println("[CLIENTSERVER] " + client.username + " is the new coordinator");
 	            break;
 	        }
     	}
@@ -188,7 +200,7 @@ class ClientThread implements Runnable{
     	String[] splitMsg = message.split(" ",3);
     	
     	if (splitMsg.length < 3) {
-    		out.println("system use this format: dm username message");
+    		out.println("system use this format: /dm <username> <message>");
     		return;
     	}
     	
@@ -198,11 +210,11 @@ class ClientThread implements Runnable{
     	ClientThread target = clients.get(user);
     	
     	if (target == null) {
-    		out.println("system ok schizo, now type someone who exists"); //deja vu
+    		out.println("system That member does not exist."); //deja vu
     		return;
     	}
     	
-    	target.out.println("DM: " + username + "- " + dm);
+    	target.out.println("DIRECT MESSAGE from " + username + "  DM: " + dm); //Use whitespaces here instead of real spaces so the username doesnt end up in the text field lol.
     	out.println("DM to "+ user + "- "+ dm);
     }
 
@@ -281,6 +293,11 @@ class Server{
                         String peerOnly = data.contains("|") ? data.split("\\|", 2)[1] : data;
                         lastUserlistData.set(peerOnly);
                         controller.Main_controller.update_user_list(data);
+                    }
+
+                    else if (message.equals("ping")) {
+                        synchronized(toServer) { toServer.println("pong"); }
+                        System.out.println("[CLIENTSERVER] Ping received, sent pong");
                     }
 
                     else if (message.startsWith("system ")) {
