@@ -42,7 +42,7 @@ class ClientThread implements Runnable{
     private Scanner in;
     private PrintWriter out;
 	private String username;
-	private long lastPong = System.currentTimeMillis(); //
+	private volatile long lastPong = System.currentTimeMillis(); //needs to be volatile so threads can update individually. Pulled my hair out over this
 	private boolean coordinator = false;
     private static ConcurrentHashMap<String, ClientThread> clients = new ConcurrentHashMap<>();
     

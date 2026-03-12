@@ -77,11 +77,18 @@ public class Gui {
     // GUI components we need to reference from multiple methods
     JFrame MainChatWindow;                     // the main chat window (screen 3)
     JFrame serverWindow;                       // The server GUI window
+    JDialog connectDialog;                     // The 'connect to server' window.
     JPanel bubbleContainer;                    // panel that holds all chat bubbles
     JScrollPane chatScroll;                    // scroll pane around bubbleContainer
     DefaultListModel<String> onlineUsersModel; // For online user list
     JTextField MessageTypingBox;               // the message input box
     JButton sendBtn;                           // the send button
+
+    //Used to open each window where the last window was positioned.
+    Point lastWindowPosition = null;
+
+    //Used to determine if we're at the main menu.
+    boolean goToMainMenuAfterClose = false;
 
     // === USER INFO FEATURE ===
     // Per-user info lookup map — populated when users join
@@ -356,18 +363,19 @@ public class Gui {
         dialog.setUndecorated(true);
         dialog.setBackground(BG_CHAT);
         dialog.setSize(480, 380);
-        dialog.setLocationRelativeTo(null);
+        if (lastWindowPosition != null) dialog.setLocation(lastWindowPosition);
+        else dialog.setLocationRelativeTo(null);
 
-        JLabel logo = new JLabel("HAKED", SwingConstants.CENTER);
+        JLabel logo = new JLabel("JAVACHAT", SwingConstants.CENTER);
         logo.setFont(FONT_TITLE);
         logo.setForeground(COL_ACCENT);
 
-        JLabel tagline1 = new JLabel("A Custom Server Client Chat Application",
+        JLabel tagline1 = new JLabel("A Custom Client-Server Chat Application",
                 SwingConstants.CENTER);
         tagline1.setFont(FONT_SMALL);
         tagline1.setForeground(COL_HINT);
 
-        JLabel tagline2 = new JLabel("Made by Hugo Amin Kipp Emon DT",
+        JLabel tagline2 = new JLabel("Made by: Hugo Amin Kipp & Emon",
                 SwingConstants.CENTER);
         tagline2.setFont(FONT_SMALL);
         tagline2.setForeground(COL_HINT);
@@ -427,6 +435,7 @@ public class Gui {
 
         dialog.add(root);
         dialog.setVisible(true);
+        lastWindowPosition = dialog.getLocation();
         return choice[0];
     }
 
@@ -437,7 +446,8 @@ public class Gui {
         boolean isCreating = (mode == 0);
         isHostMode = isCreating;
 
-        JDialog dialog = new JDialog((Frame) null, true);
+        connectDialog = new JDialog((Frame) null, true);
+        JDialog dialog = connectDialog;
         dialog.setUndecorated(true);
         dialog.setBackground(BG_CHAT);
 
@@ -533,11 +543,12 @@ public class Gui {
         root.add(buttonRow);
 
         boolean[] submitted = {false};
+        boolean[] wentBack  = {false};
 
         proceedBtn.addActionListener(e -> {
-            String typedIP       = ipField.getText().trim();
+            String typedIP = ipField.getText().trim();
             String typedUsername = isCreating ? "Host" : usernameField.getText().trim();
-            String typedPort     = portField.getText().trim();
+            String typedPort = portField.getText().trim();
 
             // Validate username
             if (!isCreating && typedUsername.isEmpty()) {
@@ -580,7 +591,10 @@ public class Gui {
         portField.addActionListener(pressEnter);
         ipField.addActionListener(pressEnter);
 
-        backBtn.addActionListener(e -> dialog.dispose());
+        backBtn.addActionListener(e -> {
+            wentBack[0] = true;
+            dialog.dispose();
+        });
 
         Point[] dragStart = {null};
         root.addMouseListener(new MouseAdapter() {
@@ -600,8 +614,22 @@ public class Gui {
         dialog.add(root);
         dialog.pack();
         dialog.setMinimumSize(new Dimension(420, dialog.getHeight()));
-        dialog.setLocationRelativeTo(null);
-        dialog.setVisible(true);
+        if (lastWindowPosition != null) dialog.setLocation(lastWindowPosition);
+        else dialog.setLocationRelativeTo(null);
+
+        dialog.setVisible(true); //Blocks here until dialog is closed
+
+        if (wentBack[0] || goToMainMenuAfterClose) {
+            goToMainMenuAfterClose = false;
+            int newMode = showLaunchScreen();
+            if (newMode == -1) { exitApp(); return false; }
+            boolean proceed = showConnectScreen(newMode);
+            if (proceed) {
+                if (isHostMode) showServerWindow();
+                else showChatWindow();
+            }
+            return false;
+        }
 
         if (!submitted[0]) return false;
         return true;
@@ -619,7 +647,10 @@ public class Gui {
 
         MainChatWindow.addWindowListener(new WindowAdapter() {
             @Override
-            public void windowClosing(WindowEvent e) { exitApp(); }
+            public void windowClosing(WindowEvent e) {
+                lastWindowPosition = MainChatWindow.getLocation();
+                exitApp();
+            }
         });
 
         // SUBSECT {02} - FOR NAV BAR
@@ -627,7 +658,7 @@ public class Gui {
         appLogo.setFont(FONT_BOLD.deriveFont(13f));
         appLogo.setForeground(COL_ACCENT);
 
-        JLabel appName = new JLabel("HAKED");
+        JLabel appName = new JLabel("JAVACHAT");
         appName.setFont(FONT_BOLD.deriveFont(14f));
         appName.setForeground(COL_ACCENT);
 
@@ -864,8 +895,10 @@ public class Gui {
         MainChatWindow.setContentPane(rootPanel);
         MainChatWindow.setSize(420, 420);
         MainChatWindow.setResizable(false);
-        MainChatWindow.setLocationRelativeTo(null);
+        if (lastWindowPosition != null) MainChatWindow.setLocation(lastWindowPosition);
+        else MainChatWindow.setLocationRelativeTo(null);
         MainChatWindow.setVisible(true);
+        lastWindowPosition = MainChatWindow.getLocation();
 
         // Add the logged-in user to the sidebar
         onlineUsersModel.addElement(username);
@@ -905,7 +938,7 @@ public class Gui {
         appLogo.setFont(FONT_BOLD.deriveFont(13f));
         appLogo.setForeground(COL_ACCENT);
 
-        JLabel appName = new JLabel("HAKED");
+        JLabel appName = new JLabel("JAVACHAT");
         appName.setFont(FONT_BOLD.deriveFont(14f));
         appName.setForeground(COL_ACCENT);
 
@@ -1057,8 +1090,10 @@ public class Gui {
         serverWindow.setContentPane(rootPanel);
         serverWindow.setSize(420, 420);
         serverWindow.setResizable(false);
-        serverWindow.setLocationRelativeTo(null);
+        if (lastWindowPosition != null) serverWindow.setLocation(lastWindowPosition);
+        else serverWindow.setLocationRelativeTo(null);
         serverWindow.setVisible(true);
+        lastWindowPosition = serverWindow.getLocation();
     }
 
 
@@ -1400,7 +1435,7 @@ public class Gui {
         System.exit(0);
     }
 
-    // SECTION 16 - RETURNS TO THE SERVER CREATE SCREEN
+    // SECTION 16 - RETURNS TO CHOSEN GUI WINDOW.
     public void returnToJoinScreen() {
         SwingUtilities.invokeLater(() -> {
             // Dispose chat window if it somehow opened
@@ -1422,7 +1457,6 @@ public class Gui {
         });
     }
 
-    // SECTION 16 - RETURNS TO THE MAIN MENU IF USER INPUTS INCORRECT VALUES.
     public void returnToCreateScreen() {
         SwingUtilities.invokeLater(() -> {
             if (serverWindow != null) {
@@ -1445,6 +1479,41 @@ public class Gui {
         });
     }
 
+    public void returnToMainMenu() {
+        SwingUtilities.invokeLater(() -> {
+            //If the connect screen is currently open, set the flag and let showConnectScreen handle the navigation when it unblocks
+            if (connectDialog != null && connectDialog.isShowing()) {
+                goToMainMenuAfterClose = true;
+                connectDialog.dispose();
+                connectDialog = null;
+                return;
+            }
+
+            // Otherwise handle navigation directly (e.g. called from chat window)
+            if (serverWindow != null) { serverWindow.dispose(); serverWindow = null; }
+            if (MainChatWindow != null) { MainChatWindow.dispose(); MainChatWindow = null; }
+
+            onlineUsersModel = null;
+            bubbleContainer = null;
+            chatScroll = null;
+            userInfoMap.clear();
+            messageHistory.clear();
+            coordinatorUsername = "";
+            username = "TypedUsername";
+            isHostMode = false;
+            sessionPort = "7000";
+            sessionIp = "127.0.0.1";
+
+            int mode = showLaunchScreen();
+            if (mode == -1) { exitApp(); return; }
+            boolean proceed = showConnectScreen(mode);
+            if (proceed) {
+                if (isHostMode) showServerWindow();
+                else showChatWindow();
+            }
+        });
+    }
+
     public void displayRecievedMessage(String recievedMessage, String senderName) {
         // Displays received messages from the controller into the users GUI.
         addMessage(recievedMessage, false, senderName);
@@ -1464,12 +1533,10 @@ public class Gui {
         if (mode == -1) System.exit(0);
 
         boolean proceed = app.showConnectScreen(mode);
-        if (!proceed) System.exit(0);
-
-        if (app.isHostMode) {
-            SwingUtilities.invokeLater(app::showServerWindow);
-        } else {
-            SwingUtilities.invokeLater(app::showChatWindow);
+        //If !proceed, showConnectScreen() already handled gui navigation internally
+        if (proceed) {
+            if (app.isHostMode) SwingUtilities.invokeLater(app::showServerWindow);
+            else SwingUtilities.invokeLater(app::showChatWindow);
         }
     }
 }
