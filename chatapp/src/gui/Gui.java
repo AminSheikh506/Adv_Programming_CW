@@ -300,7 +300,7 @@ public class Gui {
         appLogo.setFont(FONT_BOLD.deriveFont(13f));
         appLogo.setForeground(COL_ACCENT);
 
-        JLabel appName = new JLabel("HAKED");
+        JLabel appName = new JLabel("JAVACHAT");
         appName.setFont(FONT_BOLD.deriveFont(14f));
         appName.setForeground(COL_ACCENT);
 
@@ -410,7 +410,7 @@ public class Gui {
         appLogo.setFont(FONT_BOLD.deriveFont(13f));
         appLogo.setForeground(COL_ACCENT);
 
-        JLabel appName = new JLabel("HAKED");
+        JLabel appName = new JLabel("JAVACHAT");
         appName.setFont(FONT_BOLD.deriveFont(14f));
         appName.setForeground(COL_ACCENT);
 
@@ -553,16 +553,16 @@ public class Gui {
         if (lastWindowPosition != null) dialog.setLocation(lastWindowPosition);
         else dialog.setLocationRelativeTo(null);
 
-        JLabel logo = new JLabel("HAKED", SwingConstants.CENTER);
+        JLabel logo = new JLabel("JAVACHAT", SwingConstants.CENTER);
         logo.setFont(FONT_TITLE);
         logo.setForeground(COL_ACCENT);
 
-        JLabel tagline1 = new JLabel("A Custom Server Client Chat Application",
+        JLabel tagline1 = new JLabel("A Custom Client-Server Chat Application",
                 SwingConstants.CENTER);
         tagline1.setFont(FONT_SMALL);
         tagline1.setForeground(COL_HINT);
 
-        JLabel tagline2 = new JLabel("Made by Hugo Amin Kipp Emon DT",
+        JLabel tagline2 = new JLabel("Made by: Hugo, Amin, Kipp, Emon & Dhari",
                 SwingConstants.CENTER);
         tagline2.setFont(FONT_SMALL);
         tagline2.setForeground(COL_HINT);
@@ -732,9 +732,9 @@ public class Gui {
         boolean[] wentBack  = {false};
 
         proceedBtn.addActionListener(e -> {
-            String typedIP       = ipField.getText().trim();
+            String typedIP = ipField.getText().trim();
             String typedUsername = isCreating ? "Host" : usernameField.getText().trim();
-            String typedPort     = portField.getText().trim();
+            String typedPort = portField.getText().trim();
 
             // Validate username
             if (!isCreating && (typedUsername.isEmpty() || typedUsername.length() > 20)) {
@@ -1684,7 +1684,7 @@ public class Gui {
         System.exit(0);
     }
 
-    // SECTION 16 - RETURNS TO THE SERVER CREATE SCREEN
+    // SECTION 16 - RETURNS TO CHOSEN GUI WINDOW.
     public void returnToJoinScreen() {
         SwingUtilities.invokeLater(() -> {
             // Dispose chat window if it somehow opened
@@ -1706,7 +1706,7 @@ public class Gui {
         });
     }
 
-    // SECTION 16 - RETURNS TO THE MAIN MENU IF USER INPUTS INCORRECT VALUES.
+
     public void returnToCreateScreen() {
         SwingUtilities.invokeLater(() -> {
             if (serverWindow != null) {
