@@ -4,6 +4,7 @@ BY:
 - Kipp SUMMERS
 - Jahid EMON
 - Hugo PIPER
+- Dhari ALTHUNAYAN 
 
 
 
@@ -61,6 +62,10 @@ JAHID EMON:
     - The chatroom must have an EXIT button which brings the client back to the homepage GUI
     - The chatroom must alert the client in the event that the coordinator changes OR the client has lost connection.
 
+
+Dhari AlThunayan:
+
+•) Serve a generalist role, contributing across quality assurance, bug fixes, and feature implementation between frontend and backend as needed.
 
 
 ## Additional notes:
