@@ -79,7 +79,7 @@ class ClientThread implements Runnable{
             }
 
             //Server sends the Username, IP and PORT when a new user joins to the coordinator directly.
-            sendToCoordinator("peerinfo " + username + " " + socket.getInetAddress().getHostAddress() + " " + socket.getPort());
+            sendToCoordinator("peerinfo " + username + "|" + socket.getInetAddress().getHostAddress() + "|" + socket.getPort());
             
 
             while (in.hasNextLine()){
@@ -261,6 +261,7 @@ class Server{
 
                         if (isSelf) {
                             peerMap.clear();
+                            peerMap.put(userUsername, new String[]{"coordinator", "-"}); // Coordinator's own entry
                             String lastData = lastUserlistData.get();
                             if (!lastData.isEmpty()) {
                                 for (String entry : lastData.split(",")) {
@@ -274,9 +275,10 @@ class Server{
                     }
 
                     else if (message.startsWith("peerinfo ") && isCoordinator.get()) {
-                        String[] parts = message.split(" ", 4);
-                        if (parts.length >= 4) {
-                            peerMap.put(parts[1], new String[]{parts[2], parts[3]});
+                        String payload = message.substring(9); // strip peerinfo prefix
+                        String[] parts = payload.split("\\|", 3);
+                        if (parts.length >= 3) {
+                            peerMap.put(parts[0], new String[]{parts[1], parts[2]});
                             broadcastUserList(toServer, peerMap, userUsername);
                         }
                     }

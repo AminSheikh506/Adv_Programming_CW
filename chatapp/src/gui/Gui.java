@@ -10,6 +10,7 @@ import java.util.List;
 import javax.swing.*;               // Helps with the GUI Components
 import javax.swing.border.*;        // Tools for drawing borders around panels
 import javax.swing.plaf.basic.*;    // Helps to redesign
+import java.awt.image.BufferedImage; // Used for Speech buble width sizing
 
 public class Gui {
 
@@ -229,11 +230,21 @@ public class Gui {
                 Graphics2D graphics = (Graphics2D) g.create();
                 graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Rounded fill on hover
                 if (getModel().isRollover()) {
                     graphics.setColor(new Color(color.getRed(), color.getGreen(),
-                            color.getBlue(), 50));
-                    graphics.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                            color.getBlue(), 60));
+                    graphics.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
                 }
+
+                // Permanent rounded border
+                graphics.setColor(new Color(color.getRed(), color.getGreen(),
+                        color.getBlue(), getModel().isRollover() ? 180 : 80));
+                graphics.setStroke(new BasicStroke(1f));
+                graphics.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 8, 8);
+
+                // Symbol
                 graphics.setColor(color);
                 graphics.setFont(FONT_BOLD);
                 FontMetrics fm = graphics.getFontMetrics();
@@ -283,7 +294,183 @@ public class Gui {
     }
 
 
-    // [ makeLabelledField() - METHOD {04} TO CREATE INPUT LABEL ]
+    // [ makeNavBar() - METHOD {04} SHARED NAV BAR FOR BOTH WINDOWS ]
+    JPanel makeNavBar(JFrame frame, String rightLabel, Rectangle[] savedBounds) {
+        JLabel appLogo = new JLabel("\u23FF");
+        appLogo.setFont(FONT_BOLD.deriveFont(13f));
+        appLogo.setForeground(COL_ACCENT);
+
+        JLabel appName = new JLabel("HAKED");
+        appName.setFont(FONT_BOLD.deriveFont(14f));
+        appName.setForeground(COL_ACCENT);
+
+        JLabel rightLbl = new JLabel(rightLabel);
+        rightLbl.setFont(FONT_NORMAL);
+        rightLbl.setForeground(COL_TEXT);
+
+        JPanel navLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
+        navLeft.setOpaque(false);
+        navLeft.add(appLogo);
+        navLeft.add(appName);
+        navLeft.add(rightLbl);
+
+        JButton minBtn = makeIconButton("\u2212", COL_HINT, e -> frame.setState(Frame.ICONIFIED));
+        JButton maxBtn = makeIconButton("\u25A1", COL_HINT, e -> {
+            if (savedBounds[0] != null) {
+                Rectangle r = savedBounds[0];
+                savedBounds[0] = null;
+                animateWindow(frame, r.x, r.y, r.width, r.height);
+            } else {
+                savedBounds[0] = frame.getBounds();
+                GraphicsConfiguration gc = frame.getGraphicsConfiguration();
+                Rectangle s = gc.getBounds();
+                Insets ins = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+                animateWindow(frame, s.x + ins.left, s.y + ins.top,
+                        s.width - ins.left - ins.right, s.height - ins.top - ins.bottom);
+            }
+        });
+        JButton closeBtn = makeIconButton("\u2715", COL_EXIT, e -> exitApp());
+
+        JPanel navRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
+        navRight.setOpaque(false);
+        navRight.add(minBtn);
+        navRight.add(maxBtn);
+        navRight.add(closeBtn);
+
+        JPanel leftWrapper = new JPanel(new GridBagLayout());
+        leftWrapper.setOpaque(false);
+        leftWrapper.add(navLeft);
+
+        JPanel rightWrapper = new JPanel(new GridBagLayout());
+        rightWrapper.setOpaque(false);
+        rightWrapper.add(navRight);
+
+        JPanel navBar = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                g.setColor(COL_BORDER);
+                g.fillRect(0, getHeight() - 1, getWidth(), 1);
+            }
+        };
+        navBar.setBackground(BG_NAV);
+        navBar.setPreferredSize(new Dimension(0, 46));
+        navBar.setBorder(new EmptyBorder(0, 14, 0, 10));
+        navBar.add(leftWrapper,  BorderLayout.WEST);
+        navBar.add(rightWrapper, BorderLayout.EAST);
+
+        Point[] dragStart = {null};
+        navBar.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
+            @Override public void mouseClicked(MouseEvent e) { if (e.getClickCount() == 2) maxBtn.doClick(); }
+        });
+        navBar.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseDragged(MouseEvent e) {
+                if (savedBounds[0] != null) return;
+                Point pos = frame.getLocation();
+                frame.setLocation(pos.x + e.getX() - dragStart[0].x, pos.y + e.getY() - dragStart[0].y);
+            }
+        });
+
+        return navBar;
+    }
+
+    // [ makeRootPanel() - METHOD {05} SHARED THEMED ROOT PANEL ]
+    static JPanel makeRootPanel() {
+        JPanel panel = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BG_MAIN);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(COL_ACCENT);
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+                g2.dispose();
+            }
+        };
+        panel.setOpaque(true);
+        panel.setBackground(BG_MAIN);
+        return panel;
+    }
+
+    // [ makeFrame() - METHOD {06} SHARED UNDECORATED FRAME SETUP ]
+    static JFrame makeFrame(WindowAdapter onClose) {
+        JFrame frame = new JFrame();
+        frame.setUndecorated(true);
+        frame.setOpacity(1.0f);
+        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        frame.addWindowListener(onClose);
+        return frame;
+    }
+
+    // [ makeDialogNavBar() - METHOD {07} NAV BAR FOR DIALOGS (no maximise) ]
+    // Wires drag-to-move onto the given root panel, returns the nav bar to add at NORTH.
+    static JPanel makeDialogNavBar(JDialog dialog, String title, JPanel root) {
+        JLabel appLogo = new JLabel("\u23FF");
+        appLogo.setFont(FONT_BOLD.deriveFont(13f));
+        appLogo.setForeground(COL_ACCENT);
+
+        JLabel appName = new JLabel("HAKED");
+        appName.setFont(FONT_BOLD.deriveFont(14f));
+        appName.setForeground(COL_ACCENT);
+
+        JLabel titleLbl = new JLabel(title);
+        titleLbl.setFont(FONT_NORMAL);
+        titleLbl.setForeground(COL_HINT);
+
+        JPanel navLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
+        navLeft.setOpaque(false);
+        navLeft.add(appLogo);
+        navLeft.add(appName);
+        navLeft.add(titleLbl);
+
+        JButton minBtn   = makeIconButton("\u2212", COL_HINT,  e -> dialog.setVisible(false));
+        JButton closeBtn = makeIconButton("\u2715", COL_EXIT,  e -> dialog.dispose());
+
+        JPanel navRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
+        navRight.setOpaque(false);
+        navRight.add(minBtn);
+        navRight.add(closeBtn);
+
+        // Wrap in GridBagLayout so both sides center vertically in the 46px bar
+        JPanel leftWrapper = new JPanel(new GridBagLayout());
+        leftWrapper.setOpaque(false);
+        leftWrapper.add(navLeft);
+
+        JPanel rightWrapper = new JPanel(new GridBagLayout());
+        rightWrapper.setOpaque(false);
+        rightWrapper.add(navRight);
+
+        JPanel navBar = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                g.setColor(COL_BORDER);
+                g.fillRect(0, getHeight() - 1, getWidth(), 1);
+            }
+        };
+        navBar.setBackground(BG_NAV);
+        navBar.setPreferredSize(new Dimension(0, 46));
+        navBar.setBorder(new EmptyBorder(0, 14, 0, 10));
+        navBar.add(leftWrapper,  BorderLayout.WEST);
+        navBar.add(rightWrapper, BorderLayout.EAST);
+
+        // Drag to move using the nav bar
+        Point[] dragStart = {null};
+        navBar.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
+        });
+        navBar.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseDragged(MouseEvent e) {
+                Point pos = dialog.getLocation();
+                dialog.setLocation(pos.x + e.getX() - dragStart[0].x,
+                                   pos.y + e.getY() - dragStart[0].y);
+            }
+        });
+
+        return navBar;
+    }
+
+    // [ makeLabelledField() - METHOD {05} TO CREATE INPUT LABEL ]
     static JPanel makeLabelledField(String caption, JTextField field) {
 
         JLabel label = new JLabel(caption);
@@ -366,16 +553,16 @@ public class Gui {
         if (lastWindowPosition != null) dialog.setLocation(lastWindowPosition);
         else dialog.setLocationRelativeTo(null);
 
-        JLabel logo = new JLabel("JAVACHAT", SwingConstants.CENTER);
+        JLabel logo = new JLabel("HAKED", SwingConstants.CENTER);
         logo.setFont(FONT_TITLE);
         logo.setForeground(COL_ACCENT);
 
-        JLabel tagline1 = new JLabel("A Custom Client-Server Chat Application",
+        JLabel tagline1 = new JLabel("A Custom Server Client Chat Application",
                 SwingConstants.CENTER);
         tagline1.setFont(FONT_SMALL);
         tagline1.setForeground(COL_HINT);
 
-        JLabel tagline2 = new JLabel("Made by: Hugo Amin Kipp & Emon",
+        JLabel tagline2 = new JLabel("Made by Hugo Amin Kipp Emon DT",
                 SwingConstants.CENTER);
         tagline2.setFont(FONT_SMALL);
         tagline2.setForeground(COL_HINT);
@@ -410,28 +597,17 @@ public class Gui {
         cards.add(createCard);
         cards.add(joinCard);
 
+        JPanel content = new JPanel(new BorderLayout());
+        content.setOpaque(false);
+        content.setBorder(new EmptyBorder(20, 32, 28, 32));
+        content.add(header, BorderLayout.NORTH);
+        content.add(cards,  BorderLayout.CENTER);
+
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_CHAT);
-        root.setBorder(BorderFactory.createCompoundBorder(
-                new LineBorder(COL_BORDER, 1, true),
-                new EmptyBorder(28, 32, 28, 32)));
-        root.add(header, BorderLayout.NORTH);
-        root.add(cards,  BorderLayout.CENTER);
-
-        Point[] dragStart = {null};
-        root.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
-        });
-        root.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseDragged(MouseEvent e) {
-                Point pos = dialog.getLocation();
-                dialog.setLocation(
-                        pos.x + e.getX() - dragStart[0].x,
-                        pos.y + e.getY() - dragStart[0].y);
-            }
-        });
+        root.setBorder(new LineBorder(COL_BORDER, 1, true));
+        root.add(makeDialogNavBar(dialog, "Welcome", root), BorderLayout.NORTH);
+        root.add(content, BorderLayout.CENTER);
 
         dialog.add(root);
         dialog.setVisible(true);
@@ -503,9 +679,9 @@ public class Gui {
                 new EmptyBorder(18, 18, 18, 18)));
         if (!isCreating) {
             form.add(makeLabelledField("SERVER IP", ipField));
-            form.add(makeLabelledField("USERNAME", usernameField));
+            form.add(makeLabelledField("USERNAME - (1-20 chars)", usernameField));
         }
-        form.add(makeLabelledField("PORT  (1 to 65535)", portField));
+        form.add(makeLabelledField("PORT - (1 to 65535)", portField));
         form.setAlignmentX(0.5f);
         form.setMaximumSize(new Dimension(Integer.MAX_VALUE,
                 form.getPreferredSize().height));
@@ -525,34 +701,44 @@ public class Gui {
         JPanel root = new JPanel();
         root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
         root.setBackground(BG_CHAT);
-        root.setBorder(BorderFactory.createCompoundBorder(
+        root.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        JPanel navBar = makeDialogNavBar(dialog, isCreating ? "Create Server" : "Join Server", root);
+
+        JPanel body = new JPanel();
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setOpaque(false);
+        body.setBorder(BorderFactory.createCompoundBorder(
                 new LineBorder(COL_BORDER, 1, true),
-                new EmptyBorder(28, 32, 24, 32)));
-        root.add(iconLabel);
-        root.add(Box.createVerticalStrut(8));
-        root.add(titleLabel);
-        root.add(Box.createVerticalStrut(6));
-        root.add(subtitleLabel);
-        root.add(Box.createVerticalStrut(16));
+                new EmptyBorder(20, 32, 24, 32)));
+        body.add(iconLabel);
+        body.add(Box.createVerticalStrut(8));
+        body.add(titleLabel);
+        body.add(Box.createVerticalStrut(6));
+        body.add(subtitleLabel);
+        body.add(Box.createVerticalStrut(16));
         if (isCreating) {
-            root.add(hostBadge);
-            root.add(Box.createVerticalStrut(12));
+            body.add(hostBadge);
+            body.add(Box.createVerticalStrut(12));
         }
-        root.add(form);
-        root.add(Box.createVerticalStrut(20));
-        root.add(buttonRow);
+        body.add(form);
+        body.add(Box.createVerticalStrut(20));
+        body.add(buttonRow);
+
+        root.add(navBar);
+        root.add(body);
 
         boolean[] submitted = {false};
         boolean[] wentBack  = {false};
 
         proceedBtn.addActionListener(e -> {
-            String typedIP = ipField.getText().trim();
+            String typedIP       = ipField.getText().trim();
             String typedUsername = isCreating ? "Host" : usernameField.getText().trim();
-            String typedPort = portField.getText().trim();
+            String typedPort     = portField.getText().trim();
 
             // Validate username
-            if (!isCreating && typedUsername.isEmpty()) {
-                showErrorPopup("Please enter a username.");
+            if (!isCreating && (typedUsername.isEmpty() || typedUsername.length() > 20)) {
+                showErrorPopup("Username must be between 1 and 20 characters.");
                 return;
             }
 
@@ -596,21 +782,6 @@ public class Gui {
             dialog.dispose();
         });
 
-        Point[] dragStart = {null};
-        root.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
-        });
-        root.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseDragged(MouseEvent e) {
-                Point pos = dialog.getLocation();
-                dialog.setLocation(
-                        pos.x + e.getX() - dragStart[0].x,
-                        pos.y + e.getY() - dragStart[0].y);
-            }
-        });
-
         dialog.add(root);
         dialog.pack();
         dialog.setMinimumSize(new Dimension(420, dialog.getHeight()));
@@ -640,85 +811,17 @@ public class Gui {
     void showChatWindow() {
 
         // SUBSECT {01} - CREATES WINDOW
-        MainChatWindow = new JFrame();
-        MainChatWindow.setUndecorated(true);
-        MainChatWindow.setBackground(new Color(0, 0, 0, 0));
-        MainChatWindow.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-
-        MainChatWindow.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
+        MainChatWindow = makeFrame(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent e) {
                 lastWindowPosition = MainChatWindow.getLocation();
                 exitApp();
             }
         });
 
         // SUBSECT {02} - FOR NAV BAR
-        JLabel appLogo = new JLabel("\u23FF");
-        appLogo.setFont(FONT_BOLD.deriveFont(13f));
-        appLogo.setForeground(COL_ACCENT);
-
-        JLabel appName = new JLabel("JAVACHAT");
-        appName.setFont(FONT_BOLD.deriveFont(14f));
-        appName.setForeground(COL_ACCENT);
-
-        JLabel userLabel = new JLabel("@" + username);
-        userLabel.setFont(FONT_NORMAL);
-        userLabel.setForeground(COL_TEXT);
-
-        JPanel navLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
-        navLeft.setOpaque(false);
-        navLeft.add(appLogo);
-        navLeft.add(appName);
-        navLeft.add(userLabel);
-
-        JButton minimiseBtn = makeIconButton("\u2212", COL_HINT,
-                e -> MainChatWindow.setState(Frame.ICONIFIED));
-
-        JButton closeBtn = makeIconButton("\u2715", COL_EXIT,
-                e -> exitApp());
-
-        JPanel navRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
-        navRight.setOpaque(false);
-        navRight.add(minimiseBtn);
-        navRight.add(closeBtn);
-
-        JPanel leftWrapper = new JPanel(new GridBagLayout());
-        leftWrapper.setOpaque(false);
-        leftWrapper.add(navLeft);
-
-        JPanel rightWrapper = new JPanel(new GridBagLayout());
-        rightWrapper.setOpaque(false);
-        rightWrapper.add(navRight);
-
-        JPanel navBar = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                g.setColor(COL_BORDER);
-                g.fillRect(0, getHeight() - 1, getWidth(), 1);
-            }
-        };
-        navBar.setBackground(BG_NAV);
-        navBar.setPreferredSize(new Dimension(0, 46));
-        navBar.setBorder(new EmptyBorder(0, 14, 0, 10));
-        navBar.add(leftWrapper, BorderLayout.WEST);
-        navBar.add(rightWrapper, BorderLayout.EAST);
-
-        Point[] dragStart = {null};
-        navBar.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) { dragStart[0] = e.getPoint(); }
-        });
-        navBar.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseDragged(MouseEvent e) {
-                Point pos = MainChatWindow.getLocation();
-                MainChatWindow.setLocation(
-                        pos.x + e.getX() - dragStart[0].x,
-                        pos.y + e.getY() - dragStart[0].y);
-            }
-        });
+        Rectangle[] savedBounds = { null };
+        String displayName = username.length() > 12 ? username.substring(0, 12) + "..." : username;
+        JPanel navBar = makeNavBar(MainChatWindow, "@" + displayName, savedBounds);
 
 
         // SUBSECT {03} - CREATES CHAT BUBBLE AREA
@@ -774,7 +877,10 @@ public class Gui {
             dot.setForeground(COL_ONLINE);
             dot.setFont(FONT_SMALL);
 
-            JLabel name = new JLabel(value.toString());
+            String n = value.toString();
+            String trimmed = n.length() > 12 ? n.substring(0, 12) + "..." : n;
+            JLabel name = new JLabel(trimmed);
+            
             name.setFont(FONT_NORMAL);
             name.setForeground(COL_TEXT);
 
@@ -873,50 +979,24 @@ public class Gui {
         bottomBar.add(inputBar, BorderLayout.CENTER);
 
         // SUBSECT {06} - ROOT ASSEMBLY
-        JPanel rootPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D graphics = (Graphics2D) g.create();
-                graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                graphics.setColor(BG_MAIN);
-                graphics.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
-                graphics.setColor(COL_ACCENT);
-                graphics.setStroke(new BasicStroke(1.5f));
-                graphics.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 14, 14);
-                graphics.dispose();
-            }
-        };
-        rootPanel.setOpaque(false);
-        rootPanel.add(navBar,          BorderLayout.NORTH);
-        rootPanel.add(chatAndSidebar,  BorderLayout.CENTER);
-        rootPanel.add(bottomBar,       BorderLayout.SOUTH);
+        JPanel rootPanel = makeRootPanel();
+        rootPanel.add(navBar,         BorderLayout.NORTH);
+        rootPanel.add(chatAndSidebar, BorderLayout.CENTER);
+        rootPanel.add(bottomBar,      BorderLayout.SOUTH);
 
         MainChatWindow.setContentPane(rootPanel);
-        MainChatWindow.setSize(420, 420);
-        MainChatWindow.setResizable(false);
+        MainChatWindow.setSize(700, 520);
+        MainChatWindow.setMinimumSize(new Dimension(480, 360));
         if (lastWindowPosition != null) MainChatWindow.setLocation(lastWindowPosition);
         else MainChatWindow.setLocationRelativeTo(null);
+        addResizeSupport(MainChatWindow, rootPanel);
         MainChatWindow.setVisible(true);
         lastWindowPosition = MainChatWindow.getLocation();
 
-        // Add the logged-in user to the sidebar
-        onlineUsersModel.addElement(username);
-
-        // Adds the users name to a map
-        userInfoMap.put(username, new UserInfo(username, sessionIp, sessionPort, isHostMode));
-
-
-        // === USER INFO FEATURE: seed own UserInfo so popup works immediately ===
+        // Seed own user info and add to sidebar
         coordinatorUsername = isHostMode ? username : "";
-        userInfoMap.put(username, new UserInfo(
-                username,
-                sessionIp,
-                sessionPort,
-                isHostMode
-        ));
-
-        // Give focus to the input field right away
+        userInfoMap.put(username, new UserInfo(username, sessionIp, sessionPort, isHostMode));
+        onlineUsersModel.addElement(username);
         MessageTypingBox.requestFocusInWindow();
     }
 
@@ -932,6 +1012,8 @@ public class Gui {
             @Override
             public void windowClosing(WindowEvent e) { exitApp(); }
         });
+
+        Rectangle[] srvSavedBounds = { null };
 
         // --- NAV BAR ---
         JLabel appLogo = new JLabel("\u23FF");
@@ -954,12 +1036,28 @@ public class Gui {
 
         JButton minimiseBtn = makeIconButton("\u2212", COL_HINT,
                 e -> serverWindow.setState(Frame.ICONIFIED));
-        JButton closeBtn    = makeIconButton("\u2715", COL_EXIT,
+
+        JButton maxBtn = makeIconButton("\u25A1", COL_HINT, e -> {
+            if (srvSavedBounds[0] != null) {
+                Rectangle r = srvSavedBounds[0];
+                srvSavedBounds[0] = null;
+                animateWindow(serverWindow, r.x, r.y, r.width, r.height);
+            } else {
+                srvSavedBounds[0] = serverWindow.getBounds();
+                GraphicsConfiguration gc = serverWindow.getGraphicsConfiguration();
+                Rectangle s = gc.getBounds();
+                Insets ins = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+                animateWindow(serverWindow, s.x + ins.left, s.y + ins.top,
+                        s.width - ins.left - ins.right, s.height - ins.top - ins.bottom);
+            }
+        });
+        JButton closeBtn = makeIconButton("\u2715", COL_EXIT,
                 e -> exitApp());
 
         JPanel navRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
         navRight.setOpaque(false);
         navRight.add(minimiseBtn);
+        navRight.add(maxBtn);
         navRight.add(closeBtn);
 
         JPanel leftWrapper = new JPanel(new GridBagLayout());
@@ -1063,21 +1161,7 @@ public class Gui {
         logPanel.add(logScroll, BorderLayout.CENTER);
 
         // --- ROOT ASSEMBLY ---
-        JPanel rootPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D graphics = (Graphics2D) g.create();
-                graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                graphics.setColor(BG_MAIN);
-                graphics.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
-                graphics.setColor(COL_ACCENT);
-                graphics.setStroke(new BasicStroke(1.5f));
-                graphics.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 14, 14);
-                graphics.dispose();
-            }
-        };
-        rootPanel.setOpaque(false);
+        JPanel rootPanel = makeRootPanel();
 
         JPanel topSection = new JPanel(new BorderLayout());
         topSection.setOpaque(false);
@@ -1089,7 +1173,8 @@ public class Gui {
 
         serverWindow.setContentPane(rootPanel);
         serverWindow.setSize(420, 420);
-        serverWindow.setResizable(false);
+        serverWindow.setMinimumSize(new Dimension(420, 300));
+        addResizeSupport(serverWindow, rootPanel);
         if (lastWindowPosition != null) serverWindow.setLocation(lastWindowPosition);
         else serverWindow.setLocationRelativeTo(null);
         serverWindow.setVisible(true);
@@ -1099,11 +1184,36 @@ public class Gui {
 
     // SECTION 11 - CHAT BUBBLE RENDERING
 
-    int getBubbleWidth() {
+    int getBubbleMaxWidth() {
         int panelWidth = (bubbleContainer != null) ? bubbleContainer.getWidth() : 260;
         int usable = Math.max(panelWidth - 52, 80);
-        return Math.min((int)(usable * BUBBLE_MAX_FRACTION), 500);
+        return Math.min((int) (usable * BUBBLE_MAX_FRACTION), 700);
     }
+
+    int getBubbleTextWidth(String text, Font font, int maxWidth) {
+
+    FontMetrics fm;
+
+    if (bubbleContainer != null) {
+        fm = bubbleContainer.getFontMetrics(font);
+    } else {
+        BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        fm = g2.getFontMetrics(font);
+        g2.dispose();
+    }
+
+    String[] lines = text.split("\n");
+    int longestLine = 0;
+
+    for (String line : lines) {
+        longestLine = Math.max(longestLine, fm.stringWidth(line));
+    }
+
+    int padded = longestLine + 24;
+
+    return Math.max(90, Math.min(padded, maxWidth));
+}
 
     void addMessage(String text, boolean outgoing, String sender) {
         messageHistory.add(new Message(text, outgoing, sender, false));
@@ -1121,36 +1231,56 @@ public class Gui {
 
     void drawBubble(String text, boolean outgoing, String sender) {
 
-        int bubblewidth = getBubbleWidth();
-
         JLabel senderLabel = new JLabel("@" + sender);
         senderLabel.setFont(FONT_BOLD.deriveFont(11f));
         senderLabel.setForeground(COL_ACCENT);
         senderLabel.setBorder(new EmptyBorder(0, 4, 2, 4));
 
-        JTextArea textArea = new JTextArea(text);
-        textArea.setEditable(false);
-        textArea.setLineWrap(true);
-        textArea.setWrapStyleWord(true);
-        textArea.setFont(FONT_NORMAL);
-        textArea.setOpaque(false);
-        textArea.setForeground(COL_TEXT);
-        textArea.setBorder(new EmptyBorder(9, 12, 9, 12));
-
-        textArea.setSize(bubblewidth - 2, 9999);
-        int textHeight = textArea.getPreferredSize().height;
-
-        textArea.setPreferredSize(new Dimension(bubblewidth - 2, textHeight));
-        textArea.setMaximumSize(new Dimension(bubblewidth - 2, textHeight));
-        textArea.setMinimumSize(new Dimension(10,      textHeight));
-
-        Color bgCol    = outgoing ? BUBBLE_OUT : BUBBLE_IN;
-        Color borderCol = outgoing ? COL_ACCENT : COL_BORDER;
-        int bh = textHeight + 2;
-
         JPanel bubble = new JPanel(new BorderLayout()) {
+
+            private JTextArea ta;
+
+            {
+                ta = new JTextArea(text);
+                ta.setEditable(false);
+                ta.setLineWrap(true);
+                ta.setWrapStyleWord(true);
+                ta.setFont(FONT_NORMAL);
+                ta.setOpaque(false);
+                ta.setForeground(COL_TEXT);
+                ta.setBorder(new EmptyBorder(9, 12, 9, 12));
+                setOpaque(false);
+                add(ta, BorderLayout.CENTER);
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                int containerWidth = (bubbleContainer != null && bubbleContainer.getWidth() > 0)
+                        ? bubbleContainer.getWidth() : 300;
+                int maxW = (int) Math.min(containerWidth * BUBBLE_MAX_FRACTION, 700);
+
+                FontMetrics fm = ta.getFontMetrics(FONT_NORMAL);
+                String[] lines = text.split("\n");
+                int naturalTextW = 0;
+                for (String line : lines) naturalTextW = Math.max(naturalTextW, fm.stringWidth(line));
+                int naturalW = Math.min(naturalTextW + 26, maxW);
+
+                int targetW = Math.max(naturalW, 36);
+
+                ta.setSize(new Dimension(targetW, Integer.MAX_VALUE));
+                int h = ta.getPreferredSize().height + 2;
+                return new Dimension(targetW, h);
+            }
+
+            @Override
+            public Dimension getMinimumSize() { return getPreferredSize(); }
+            @Override
+            public Dimension getMaximumSize() { return getPreferredSize(); }
+
             @Override
             protected void paintComponent(Graphics g) {
+                Color bgCol     = outgoing ? BUBBLE_OUT : BUBBLE_IN;
+                Color borderCol = outgoing ? COL_ACCENT : COL_BORDER;
                 Graphics2D graphics = (Graphics2D) g.create();
                 graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1162,11 +1292,6 @@ public class Gui {
                 graphics.dispose();
             }
         };
-        bubble.setOpaque(false);
-        bubble.add(textArea, BorderLayout.CENTER);
-        bubble.setPreferredSize(new Dimension(bubblewidth, bh));
-        bubble.setMinimumSize(new Dimension(bubblewidth, bh));
-        bubble.setMaximumSize(new Dimension(bubblewidth, bh));
 
         float align = outgoing ? 1.0f : 0.0f;
         senderLabel.setAlignmentX(align);
@@ -1177,14 +1302,12 @@ public class Gui {
         stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
         stack.add(senderLabel);
         stack.add(bubble);
-        stack.setMaximumSize(new Dimension(bubblewidth, Short.MAX_VALUE));
 
         JPanel row = new JPanel(new BorderLayout());
         row.setOpaque(false);
         row.setBorder(new EmptyBorder(4, 0, 4, 0));
         row.setAlignmentX(0f);
         row.add(stack, outgoing ? BorderLayout.EAST : BorderLayout.WEST);
-
 
         bubbleContainer.add(row);
         bubbleContainer.revalidate();
@@ -1270,7 +1393,7 @@ public class Gui {
         roleBadge.setAlignmentX(0.5f);
         roleBadge.setMaximumSize(new Dimension(Integer.MAX_VALUE,
                 roleBadge.getPreferredSize().height));
-
+        
         JLabel atLabel = new JLabel("@" + info.username, SwingConstants.CENTER);
         atLabel.setFont(FONT_TITLE);
         atLabel.setForeground(COL_TEXT);
@@ -1430,12 +1553,138 @@ public class Gui {
         dialog.setVisible(true);
     }
 
+    //  SECTION 14A — MAXIMISE / RESTORE TRANSITION
+    private void animateWindow(JFrame frame, int tx, int ty, int tw, int th) {
+        final int STEPS = 10, DELAY = 10;
+        final boolean expanding = tw > frame.getWidth() || th > frame.getHeight();
+        final int sx = frame.getX(), sy = frame.getY();
+        final int sw = frame.getWidth(), sh = frame.getHeight();
+
+        // Snap at 40% so fade-in starts while fade-out is still finishing (overlap)
+        final float SNAP = 0.4f;
+
+        int[] step = {0};
+        boolean[] snapped = {false};
+
+        new javax.swing.Timer(DELAY, null) {{
+            addActionListener(e -> {
+                float p  = (float) ++step[0] / STEPS;
+                float t1 = Math.min(p / SNAP, 1f);         // 0→1 over first 40%
+                float t2 = Math.max((p - SNAP) / (1f - SNAP), 0f); // 0→1 over last 60%
+
+                if (!snapped[0]) {
+                    frame.setOpacity(1f - t1);
+                    if (!expanding) {
+                        frame.setLocation(sx + Math.round((tx - sx) * t1), sy + Math.round((ty - sy) * t1));
+                        frame.setSize(sw + Math.round((tw - sw) * t1), sh + Math.round((th - sh) * t1));
+                    }
+                    if (p >= SNAP) {
+                        snapped[0] = true;
+                        frame.setOpacity(0f);
+                        if (expanding) {
+                            int off = (int)(tw * 0.04f);
+                            frame.setLocation(tx + off / 2, ty + off / 2);
+                            frame.setSize(tw - off, th - off);
+                        } else {
+                            frame.setLocation(tx, ty);
+                            frame.setSize(tw, th);
+                        }
+                        frame.revalidate();
+                        frame.repaint();
+                    }
+                } else {
+                    frame.setOpacity(t2);
+                    if (expanding) {
+                        int off = (int)(tw * 0.04f * (1f - t2));
+                        frame.setLocation(tx + off / 2, ty + off / 2);
+                        frame.setSize(tw - off, th - off);
+                    }
+                }
+
+                if (step[0] >= STEPS) {
+                    stop();
+                    frame.setOpacity(1f);
+                    frame.setLocation(tx, ty);
+                    frame.setSize(tw, th);
+                    frame.revalidate();
+                    frame.repaint();
+                }
+            });
+            start();
+        }};
+    }
+
+    //  SECTION 14B — RESIZE SUPPORT FOR UNDECORATED WINDOWS
+    // Lets the user drag any edge or corner of the window to resize it,
+    // since setUndecorated(true) removes the OS resize handles.
+    private static final int RESIZE_MARGIN = 6;
+
+    private void addResizeSupport(JFrame frame, JPanel panel) {
+        MouseAdapter resizer = new MouseAdapter() {
+            private int startX, startY, startW, startH, startFX, startFY;
+            private int zone = 0; // bitmask: 1=left 2=right 4=top 8=bottom
+
+            private int getZone(MouseEvent e) {
+                int x = e.getX(), y = e.getY(), w = panel.getWidth(), h = panel.getHeight();
+                int z = 0;
+                if (x <= RESIZE_MARGIN)          z |= 1;
+                if (x >= w - RESIZE_MARGIN)      z |= 2;
+                if (y <= RESIZE_MARGIN)          z |= 4;
+                if (y >= h - RESIZE_MARGIN)      z |= 8;
+                return z;
+            }
+
+            private Cursor getCursor(int z) {
+                switch (z) {
+                    case 1:  return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);
+                    case 2:  return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);
+                    case 4:  return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);
+                    case 8:  return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);
+                    case 5:  return Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);
+                    case 6:  return Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);
+                    case 9:  return Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);
+                    case 10: return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
+                    default: return Cursor.getDefaultCursor();
+                }
+            }
+
+            @Override public void mouseMoved(MouseEvent e) {
+                panel.setCursor(getCursor(getZone(e)));
+            }
+
+            @Override public void mousePressed(MouseEvent e) {
+                zone   = getZone(e);
+                startX = e.getXOnScreen(); startY = e.getYOnScreen();
+                startW = frame.getWidth(); startH = frame.getHeight();
+                startFX = frame.getX();   startFY = frame.getY();
+            }
+
+            @Override public void mouseDragged(MouseEvent e) {
+                if (zone == 0) return;
+                int dx = e.getXOnScreen() - startX;
+                int dy = e.getYOnScreen() - startY;
+                int nx = startFX, ny = startFY, nw = startW, nh = startH;
+                if ((zone & 2) != 0) nw = Math.max(startW + dx, frame.getMinimumSize().width);
+                if ((zone & 1) != 0) { nw = Math.max(startW - dx, frame.getMinimumSize().width); nx = startFX + startW - nw; }
+                if ((zone & 8) != 0) nh = Math.max(startH + dy, frame.getMinimumSize().height);
+                if ((zone & 4) != 0) { nh = Math.max(startH - dy, frame.getMinimumSize().height); ny = startFY + startH - nh; }
+                frame.setBounds(nx, ny, nw, nh);
+            }
+
+            @Override public void mouseExited(MouseEvent e) {
+                panel.setCursor(Cursor.getDefaultCursor());
+            }
+        };
+        panel.addMouseListener(resizer);
+        panel.addMouseMotionListener(resizer);
+    }
+
     //  SECTION 15 — EXIT METHOD
     void exitApp() {
         System.exit(0);
     }
 
-    // SECTION 16 - RETURNS TO CHOSEN GUI WINDOW.
+    // SECTION 16 - RETURNS TO THE SERVER CREATE SCREEN
     public void returnToJoinScreen() {
         SwingUtilities.invokeLater(() -> {
             // Dispose chat window if it somehow opened
@@ -1457,6 +1706,7 @@ public class Gui {
         });
     }
 
+    // SECTION 16 - RETURNS TO THE MAIN MENU IF USER INPUTS INCORRECT VALUES.
     public void returnToCreateScreen() {
         SwingUtilities.invokeLater(() -> {
             if (serverWindow != null) {
