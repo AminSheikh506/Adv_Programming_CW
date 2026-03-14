@@ -830,6 +830,14 @@ public class Gui {
         bubbleContainer.setBackground(BG_CHAT);
         bubbleContainer.setBorder(new EmptyBorder(14, 16, 14, 16));
 
+        bubbleContainer.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                bubbleContainer.revalidate();
+                bubbleContainer.repaint();
+            }
+        });
+
         JPanel bubbleWrapper = new JPanel(new BorderLayout());
         bubbleWrapper.setBackground(BG_CHAT);
         bubbleWrapper.add(bubbleContainer, BorderLayout.NORTH);
@@ -1234,7 +1242,7 @@ public class Gui {
         JLabel senderLabel = new JLabel("@" + sender);
         senderLabel.setFont(FONT_BOLD.deriveFont(11f));
         senderLabel.setForeground(COL_ACCENT);
-        senderLabel.setBorder(new EmptyBorder(0, 4, 2, 4));
+        senderLabel.setBorder(new EmptyBorder(2, 4, 2, 4));
 
         JPanel bubble = new JPanel(new BorderLayout()) {
 
@@ -1248,7 +1256,7 @@ public class Gui {
                 ta.setFont(FONT_NORMAL);
                 ta.setOpaque(false);
                 ta.setForeground(COL_TEXT);
-                ta.setBorder(new EmptyBorder(9, 12, 9, 12));
+                ta.setBorder(new EmptyBorder(9, 12, 4, 12));
                 setOpaque(false);
                 add(ta, BorderLayout.CENTER);
             }
@@ -1256,20 +1264,29 @@ public class Gui {
             @Override
             public Dimension getPreferredSize() {
                 int containerWidth = (bubbleContainer != null && bubbleContainer.getWidth() > 0)
-                        ? bubbleContainer.getWidth() : 300;
+                    ? bubbleContainer.getWidth() : 300;
                 int maxW = (int) Math.min(containerWidth * BUBBLE_MAX_FRACTION, 700);
 
                 FontMetrics fm = ta.getFontMetrics(FONT_NORMAL);
                 String[] lines = text.split("\n");
                 int naturalTextW = 0;
                 for (String line : lines) naturalTextW = Math.max(naturalTextW, fm.stringWidth(line));
-                int naturalW = Math.min(naturalTextW + 26, maxW);
+                int naturalW = Math.min(naturalTextW + 30, maxW);
 
-                int targetW = Math.max(naturalW, 36);
+                int targetW = Math.max(naturalW, 90);
 
-                ta.setSize(new Dimension(targetW, Integer.MAX_VALUE));
-                int h = ta.getPreferredSize().height + 2;
-                return new Dimension(targetW, h);
+                //Added a small safety margin so the rounded stroke never sits exactly on the component edge. This only seems to be a Windows issue for some reason.
+                final int SAFETY_MARGIN = 6;
+                int finalW = targetW + SAFETY_MARGIN;
+
+                //Let the text area calculate height for the inner width (subtract ta insets already included)
+                ta.setSize(new Dimension(finalW, Integer.MAX_VALUE));
+                int h = ta.getPreferredSize().height;
+
+                //Add a small vertical safety margin too to avoid vertical cropping. Only an issue on Windows.
+                int finalH = h + SAFETY_MARGIN;
+
+                return new Dimension(finalW, finalH);
             }
 
             @Override
@@ -1284,11 +1301,20 @@ public class Gui {
                 Graphics2D graphics = (Graphics2D) g.create();
                 graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
-                graphics.setColor(bgCol);
-                graphics.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
-                graphics.setColor(borderCol);
-                graphics.setStroke(new BasicStroke(1f));
-                graphics.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+
+                // inset the drawing so stroke/antialiasing doesn't get clipped by parent
+                int inset = 2;
+                int w = getWidth() - inset * 2;
+                int h = getHeight() - inset * 2;
+                int arc = 14;
+
+                if (w > 0 && h > 0) {
+                    graphics.setColor(bgCol);
+                    graphics.fillRoundRect(inset, inset, w, h, arc, arc);
+                    graphics.setColor(borderCol);
+                    graphics.setStroke(new BasicStroke(1f));
+                    graphics.drawRoundRect(inset, inset, w - 1, h - 1, arc, arc);
+                }
                 graphics.dispose();
             }
         };
