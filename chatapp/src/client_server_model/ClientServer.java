@@ -9,35 +9,19 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
-//import java.util.Set;
-//import java.util.HashSet;
 import java.util.concurrent.*;
 
-class ServerListener extends Thread{
-	private Scanner fromServer;
-	private PrintWriter toServer;
-	
-	public ServerListener(Scanner fromServer, PrintWriter toServer) {
-		this.fromServer = fromServer;
-		this.toServer = toServer;
-	}
-	
-	@Override
-	public void run() {
-        while (fromServer.hasNextLine()) {
-			String message = fromServer.nextLine();
-			
-			if (message.equals("ping")) {
-                toServer.println("pong");   
-                continue;
-            }
-            System.out.println(message);
-			
-        }
-    }
-}
 
 class ClientThread implements Runnable{
+    /*
+    Responsible for handling each of the users which are connected. Client-side processing.
+        - Handles the user list
+        - Handles periodic ping
+        - Handles coordinator logic
+        - Handles the broadcast of direct messages
+        - Handles the broadcast of regular messages
+        - Displays yellow system messages
+    */
     private Socket socket;
     private Scanner in;
     private PrintWriter out;
@@ -62,16 +46,19 @@ class ClientThread implements Runnable{
                 socketClose();
                 return;
             }
-
+            
+            //Yellow system message when a user joins
             clients.put(username, this);
             broadcast("system " + username + " has joined");
 
+            //Assigns the first user who joins the role of coordinator.
 			if (clients.size() == 1) {
                 coordinator = true;
                 broadcast("coord " + username);
-                System.out.println("[CLIENTSERVER] " + username + " is the coordinator");
+                System.out.println("[SERVER] " + username + " is the coordinator");
             	ping();
 			} else {
+                //If there is more than 1 person in the chat, notify the user who the current coordinator is.
                 ClientThread currentCoord = getCoordinator();
                 if (currentCoord != null) {
                     out.println("system The current coordinator is " + currentCoord.username);
@@ -83,30 +70,39 @@ class ClientThread implements Runnable{
             
 
             while (in.hasNextLine()){
+                //Periodic ping logic that is executed by the coordinator.
                 String message = in.nextLine();
 				if (message.equals("pong")) {
-                    System.out.println("[CLIENTSERVER] Pong received from: " + username);
+                    System.out.println("[COORDINATOR] Pong received from: " + username);
                     lastPong = System.currentTimeMillis();
                 }
 				
                 else if (message.startsWith("/dm")) {
+                    //Handles direct messages that begin with '/dm'
                     sendDirectMessage(message);
                 }
                 else if (message.startsWith("system")){
+                    //Handles yellow system messages
                     controller.Main_controller.system_message(message);
                 }
                 else if (message.startsWith("userlist ")) {
+                    //Handles the broadcast of the current active users.
                     broadcast(message);
+                    System.out.println("\n[SERVER] Recieved active user list from coordinator: \n" + message + "\n");
                 }
                 else {
+                    //If the message doesnt start with the above prefixes, the message is from a user.
                     broadcast(username + " " + message); //Space is a NECESSITY here due to how regex handling works of the recieved messages.
+                    System.out.println("[SERVER] Message processed from " + username);
                 }
             }
         }
         finally{
+            //Handles logic of when a user leaves. If they're a coordinator, assigns a new coordinator.
             if (username != null) {
         		clients.remove(username);
         		broadcast("system " + username + " has left the chat");
+                System.out.println("[SERVER] " + username + " has disconnected.");
 				if (coordinator) {
         			assignNewCoordinator();
         		}
@@ -116,7 +112,9 @@ class ClientThread implements Runnable{
             socketClose();
         }
     }
+
 	private void ping() {
+        //Periodic ping logic that is handled by the coordinator.
         Thread pingThread = new Thread(() -> {
             while (this.coordinator) {
                 long pingSentAt = System.currentTimeMillis();
@@ -138,7 +136,7 @@ class ClientThread implements Runnable{
                 long deadline = System.currentTimeMillis() - 3000;
                 for (ClientThread client : new java.util.ArrayList<>(clients.values())) {
                     if (!client.coordinator && client.lastPong < pingSentAt) {
-                        System.out.println("[CLIENTSERVER] " + client.username + " timed out, removing.");
+                        System.out.println("[SERVER] " + client.username + " timed out, removing.");
                         clients.remove(client.username);
                         broadcast("system " + client.username + " has left the chat");
                         sendToCoordinator("depart " + client.username);
@@ -159,6 +157,7 @@ class ClientThread implements Runnable{
     }
 
 	private ClientThread getCoordinator() {
+        //Used to fetch the coordinators username
     	for (ClientThread client : clients.values()) {
     		if (client.coordinator == true) {
     			return(client);
@@ -168,12 +167,13 @@ class ClientThread implements Runnable{
     }
 
     private void broadcast(String message) {
+        //Used to send messages to ALL users
         for (ClientThread client : clients.values()) {
             client.out.println(message);}
     }
 
     private void sendToCoordinator (String message) {
-        //Sends a message from any member to the coordinator. Used for requesting IP, Username and PORT.
+        //Sends a message from any member to the coordinator. Used for requesting IP, Username and PORT in the user online list.
         ClientThread coord = getCoordinator();
         if (coord != null){
             coord.out.println(message);
@@ -181,21 +181,23 @@ class ClientThread implements Runnable{
     }
 
 	private void assignNewCoordinator() {
+        //Handles assigning a new coordinator if there is none or if someone leaves
     	if (clients.size() == 0) {
-    		System.out.println("[CLIENTSERVER] no viable members to become coordinator");
+    		System.out.println("[SERVER] no viable members to become coordinator");
     	}
     	else {
 	        for (ClientThread client : clients.values()) {
 	            client.coordinator = true;
                 broadcast("coord " + client.username);
-                System.out.println("[CLIENTSERVER] " + client.username + " is the new coordinator");
+                System.out.println("\n[SERVER] " + client.username + " is the new coordinator");
 	            break;
 	        }
     	}
     }
 	
 	private void sendDirectMessage(String message) {
-        System.out.println("[CLIENTSERVER] DM recieved: " + message);
+        //Handles a user sending a direct message to another user. Ensures message isnt displayed to other clients.
+        System.out.println("[SERVER] DM recieved: " + message);
 
     	String[] splitMsg = message.split(" ",3);
     	
@@ -207,18 +209,22 @@ class ClientThread implements Runnable{
     	String user = splitMsg[1];
     	String dm = splitMsg[2];
     	
+        //Assigns the 'target' (recipient) of the DM as a ClientThread object
     	ClientThread target = clients.get(user);
     	
     	if (target == null) {
     		out.println("system That member does not exist."); //deja vu
     		return;
-    	}
+    	} 
+        else {
+            target.out.println("DIRECT MESSAGE from " + username + "  DM: " + dm); //Use whitespaces here instead of real spaces so the username doesnt end up in the text field lol.
+    	    out.println("DM to "+ user + "- "+ dm);
+        }
     	
-    	target.out.println("DIRECT MESSAGE from " + username + "  DM: " + dm); //Use whitespaces here instead of real spaces so the username doesnt end up in the text field lol.
-    	out.println("DM to "+ user + "- "+ dm);
     }
 
     private void socketClose() {
+        //Handles shutting the server down.
         try {
             socket.close();
         } 
@@ -229,29 +235,41 @@ class ClientThread implements Runnable{
 }
 
 class Server{
+    /*
+    Responsible for handling everything related to sockets and networking.
+        - Handles the logic for joining a server
+        - Handles the logic for creating a server
+        - Finds clients private IPv4 addresses
+        - Processes and formats the coordinators online user list and transmits it to all the users. 
+    */
     
     private static void attempt_to_join_server(String ip_Address, int serverPort, String userUsername) {
         System.out.println("ATTEMPTING TO JOIN SERVER AT IP: " + ip_Address + " ON PORT " + serverPort);
 
+        //Initialises a socket in an attempt to join a server based on its IP and PORT
         try (Socket socket = new Socket(ip_Address, serverPort)) {
             Scanner fromServer = new Scanner(socket.getInputStream());
             PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true);
 
+            //Atomic variables so we don't encounter threading issues.
             java.util.concurrent.atomic.AtomicBoolean isCoordinator = new java.util.concurrent.atomic.AtomicBoolean(false);
             java.util.concurrent.atomic.AtomicReference<String> lastUserlistData = new java.util.concurrent.atomic.AtomicReference<>("");
             java.util.concurrent.ConcurrentHashMap<String, String[]> peerMap = new java.util.concurrent.ConcurrentHashMap<>();
 
+            //Responsible for sending messages to the clients with different prefixes depending on the nature of the message
             Thread listenerThread = new Thread(() -> {
                 while (fromServer.hasNextLine()) {
                     String message = fromServer.nextLine();
                     System.out.println("[CLIENTSERVER] Received: " + message);
 
+                    //Displays a system error if message begins with 'reject'. Is filtered if a user tries to send a starting with 'reject'
                     if (message.startsWith("reject ")) {
                         String reason = message.substring(7).trim();
                         controller.Main_controller.handle_rejection(reason);
                         return; // Stop the listener thread
                     }
 
+                    //Used to set the coordinator of a specific user.
                     if (message.startsWith("coord ")) {
                         String coordName = message.substring(6).trim();
                         boolean isSelf   = coordName.equals(userUsername);
@@ -259,6 +277,7 @@ class Server{
                         controller.Main_controller.set_coordinator(coordName);
                         controller.Main_controller.system_message(coordName + " is the coordinator");
 
+                        //Assigns a map to the coordinator so they can handle the online user list themselves.
                         if (isSelf) {
                             peerMap.clear();
                             peerMap.put(userUsername, new String[]{"coordinator", "-"}); // Coordinator's own entry
@@ -274,6 +293,7 @@ class Server{
                         }
                     }
 
+                    //If someone joins, the users info is sent to the coordinator in the format 'USERNAME|IP|PORT'
                     else if (message.startsWith("peerinfo ") && isCoordinator.get()) {
                         String payload = message.substring(9); // strip peerinfo prefix
                         String[] parts = payload.split("\\|", 3);
@@ -283,18 +303,21 @@ class Server{
                         }
                     }
 
+                    //Sends the username of who just left to the coordinator so they can remove the user from the list
                     else if (message.startsWith("depart ") && isCoordinator.get()) {
                         String departedUser = message.substring(7).trim();
                         peerMap.remove(departedUser);
                         broadcastUserList(toServer, peerMap, userUsername);
                     }
 
+                    //Recieves the online users list that the coordinator broadcasts. Format 'user1|ip1|port1,user2|ip2|port2,...userN|ipN|portN'
                     else if (message.startsWith("userlist ")) {
                         String data = message.substring(9).trim();
                         //Strips the coordName| prefix before storing so peerMap reconstruction on coordinator handover gets clean entries.
                         String peerOnly = data.contains("|") ? data.split("\\|", 2)[1] : data;
                         lastUserlistData.set(peerOnly);
                         controller.Main_controller.update_user_list(data);
+                        System.out.println("[CLIENTSERVER] RECIEVED USER LIST FROM COORDINATOR: \n" + data);
                     }
 
                     else if (message.equals("ping")) {
@@ -428,10 +451,14 @@ class Server{
 }
 
 public class ClientServer {
-    public void start(String user_selection, String serverIp, Integer serverPort, String userUsername) throws Exception {
+    //Responsible for selecting whether a user chose to create or join a server
 
-        //Currently runs CLI interface where users can 1)create server 2)Join server
-        System.out.println("[CLIENTSERVER] The user chose the choice: " + user_selection);
+    public void start(String user_selection, String serverIp, Integer serverPort, String userUsername) throws Exception {
+        /*Called by the controller script.
+            - "Create" creates a server.
+            - "Join" joins a server.
+        */
+        System.out.println("[SERVER] The user chose the choice: " + user_selection);
         
         if (user_selection.equals("create")){
             Server.create(serverPort);

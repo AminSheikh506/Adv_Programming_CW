@@ -15,7 +15,7 @@ import javax.swing.SwingUtilities;
 
 
 class Gui implements Runnable {
-    //Starts the GUI.java script thread.
+    //Starts the GUI.java script as a thread.
 
     public void run() {
         System.out.println("Starting GUI...");
@@ -102,7 +102,6 @@ class DisplayErrorMessage {
             
         }
     }
-
 }
 
 public class Main_controller {
@@ -118,9 +117,7 @@ public class Main_controller {
     public static void joinServerButtonPressed(String serverIP, Integer serverPort, String userUsername ){
         //This method is called from the Gui.java script when the user presses 'Join Server'.
         //The clients details are then processed and sent to the ClientServer.java script to handle networking & socket connections.
-        System.out.println("[CONTROLLER] User pressed the 'join' button named 'proceedBtn' with the following attributes:\nSERVER IP: " + serverIP
-        + "\nSERVER PORT: " + serverPort
-        + "\nUSERNAME: " + userUsername);
+        System.out.println("[CONTROLLER] User pressed the 'join' button named 'proceedBtn' with the following attributes:\nSERVER IP: " + serverIP + "\nSERVER PORT: " + serverPort + "\nUSERNAME: " + userUsername);
 
         if (serverPort < 1 || serverPort > 65535){
             errorOccured("Server Port must be between 1 and 65535. Please try again.");
