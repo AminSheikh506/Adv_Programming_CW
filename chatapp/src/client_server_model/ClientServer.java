@@ -98,14 +98,17 @@ class ClientThread implements Runnable{
             }
         }
         finally{
+            //Handles logic of when a user leaves. If they're a coordinator, assigns a new coordinator.
             if (username != null && clients.remove(username, this)) { // only proceeds if remove actually succeeded (stops glitch with duplicate usernames)
                 broadcast("system " + username + " has left the chat");
                 System.out.println("[SERVER] " + username + " has disconnected.");
                 if (coordinator) {
                     assignNewCoordinator();
                 }
+                //Tells the coordinator that someone has left and to update the 'online' list.
                 sendToCoordinator("depart " + username);
             }
+            //Closes the socket connection.
             socketClose();
         }
     }
