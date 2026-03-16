@@ -84,6 +84,7 @@ public class Gui {
     DefaultListModel<String> onlineUsersModel; // For online user list
     JTextField MessageTypingBox;               // the message input box
     JButton sendBtn;                           // the send button
+    List<UserInfo> pendingUserList = null;     // Cached list of users
 
     //Used to open each window where the last window was positioned.
     Point lastWindowPosition = null;
@@ -1005,6 +1006,10 @@ public class Gui {
         coordinatorUsername = isHostMode ? username : "";
         userInfoMap.put(username, new UserInfo(username, sessionIp, sessionPort, isHostMode));
         onlineUsersModel.addElement(username);
+        if (pendingUserList != null) {
+            updateOnlineUsers(pendingUserList);
+            pendingUserList = null;
+        }
         MessageTypingBox.requestFocusInWindow();
     }
 
@@ -1370,15 +1375,24 @@ public class Gui {
     }
 
     public void updateOnlineUsers(java.util.List<UserInfo> users) {
-        SwingUtilities.invokeLater(() -> {
-            if (onlineUsersModel == null) return;
+        Runnable apply = () -> {
+            if (onlineUsersModel == null) {
+                pendingUserList = new ArrayList<>(users);
+                return;
+            }
+            pendingUserList = null;
             onlineUsersModel.clear();
             userInfoMap.clear();
             for (UserInfo u : users) {
                 onlineUsersModel.addElement(u.username);
                 userInfoMap.put(u.username, u);
             }
-        });
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            apply.run();
+        } else {
+            SwingUtilities.invokeLater(apply);
+        }
     }
 
 
@@ -1713,22 +1727,20 @@ public class Gui {
     // SECTION 16 - RETURNS TO CHOSEN GUI WINDOW.
     public void returnToJoinScreen() {
         SwingUtilities.invokeLater(() -> {
-            // Dispose chat window if it somehow opened
             if (MainChatWindow != null) {
                 MainChatWindow.dispose();
                 MainChatWindow = null;
             }
-            // Clear state
             onlineUsersModel = null;
-            bubbleContainer  = null;
-            chatScroll       = null;
+            bubbleContainer = null;
+            chatScroll = null;
+            pendingUserList = null;
             userInfoMap.clear();
             messageHistory.clear();
             coordinatorUsername = "";
 
-            // Go straight back to the join screen (mode 1 = join)
             boolean proceed = showConnectScreen(1);
-            if (!proceed) exitApp();
+            if (proceed) showChatWindow();
         });
     }
 
