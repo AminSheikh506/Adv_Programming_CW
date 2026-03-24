@@ -1,18 +1,23 @@
 /*
 Main controller script to allow the Gui.java script and the ClientServer.java script to communicate between each other.
+This allows processing to be done outside of the GUI, and to be able to monitor and scale data-flow easily.
 This script is the 'Controller' part of MVC architecture.
 The main method is housed within this script.
+
+BY:
+AMIN SHEIKH
+KIPP SUMMERS
+HUGO PIPER
+DHARI ALTHUNAYAN
+JAHID EMON
 */
 
 package controller;
 
-import gui.*;
+//All imports
 import client_server_model.*;
-
-//Used to show the error pop-up GUI at a safe point in time if an error occurs.
-import javax.swing.SwingUtilities;
-
-
+//GUI doesnt need importing as we've used its full package name every time
+import javax.swing.SwingUtilities;  //Used to show the error pop-up GUI at a safe point in time if an error occurs.
 
 class Gui implements Runnable {
     //Starts the GUI.java script as a thread.

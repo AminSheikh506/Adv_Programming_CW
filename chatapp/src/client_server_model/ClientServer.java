@@ -1,7 +1,23 @@
+/*
+ClientServer.java is used to handle all the networking, coordinator and user logic.
+Controlled by the Main_controller.java script.
+One of its primary features is creating a new thread for each connected user and handling all the users communcation & logic.
+Responsbile for joining and ensuring a stable connection to a server using a users IP, port and username.
+Responsible for creating servers with a given IP and port.
+
+BY:
+AMIN SHEIKH
+KIPP SUMMERS
+HUGO PIPER
+DHARI ALTHUNAYAN
+JAHID EMON
+*/
+
 package client_server_model;
 
-import controller.*;
+//We don't need to import the controller because we used its full package name every time.
 
+//All imports
 import java.util.Scanner;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -10,7 +26,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.concurrent.*;
-
 
 class ClientThread implements Runnable{
     /*
@@ -133,7 +148,6 @@ class ClientThread implements Runnable{
                 }
 
                 //Check who hasn't responded since the ping was sent
-                long deadline = System.currentTimeMillis() - 3000;
                 for (ClientThread client : new java.util.ArrayList<>(clients.values())) {
                     if (!client.coordinator && client.lastPong < pingSentAt) {
                         System.out.println("[SERVER] " + client.username + " timed out, removing.");
@@ -247,9 +261,9 @@ class Server{
         System.out.println("ATTEMPTING TO JOIN SERVER AT IP: " + ip_Address + " ON PORT " + serverPort);
 
         //Initialises a socket in an attempt to join a server based on its IP and PORT
-        try (Socket socket = new Socket(ip_Address, serverPort)) {
+        try (Socket socket = new Socket(ip_Address, serverPort); 
             Scanner fromServer = new Scanner(socket.getInputStream());
-            PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true);
+            PrintWriter toServer = new PrintWriter(socket.getOutputStream(), true)){
 
             //Atomic variables so we don't encounter threading issues.
             java.util.concurrent.atomic.AtomicBoolean isCoordinator = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -372,16 +386,17 @@ class Server{
 
         System.out.println("SERVER LAUNCHING ON IP ADDRESS: " + serverIpAddress + " USING PORT " + serverPort);
 
-        ServerSocket coordinator = new ServerSocket(serverPort);
+        //No catch required as IOException contains a catch block.
+        try (ServerSocket coordinator = new ServerSocket(serverPort);){
+            while (true){
+                Socket clientSocket = coordinator.accept();
 
-        while (true) {
-            Socket clientSocket = coordinator.accept();
+                System.out.println("[CLIENTSERVER] New client connected: " + clientSocket.getInetAddress().getHostAddress());
 
-            System.out.println("[CLIENTSERVER] New client connected: " + clientSocket.getInetAddress().getHostAddress());
-
-            ClientThread client = new ClientThread(clientSocket);
-            Thread clientThread = new Thread(client);
-            clientThread.start();
+                ClientThread client = new ClientThread(clientSocket);
+                Thread clientThread = new Thread(client);
+                clientThread.start();
+            }
         }
     }
 

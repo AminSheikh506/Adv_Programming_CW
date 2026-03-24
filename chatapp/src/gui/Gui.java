@@ -1,6 +1,18 @@
+/*
+Responsible for displaying all the information to the user via a GUI.
+Controlled by the Main_controller.java script.
+
+BY:
+AMIN SHEIKH
+KIPP SUMMERS
+HUGO PIPER
+DHARI ALTHUNAYAN
+JAHID EMON
+*/
+
 package gui;
 
-import controller.*;
+//We dont need to import the controller because we used its full package name every time.
 
 // All imports
 import java.awt.*;            // For colors fonts graphics etc.

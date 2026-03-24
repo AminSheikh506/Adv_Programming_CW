@@ -1,5 +1,6 @@
 package controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -9,6 +10,14 @@ import javax.swing.SwingUtilities;
 import java.lang.reflect.Field;
 
 public class Main_controllerTest {
+
+    @BeforeEach //used to reset the GUI after every test. USED FOR RELIABILITY & ROBUSTNESS.
+    void resetGuiInstance() throws Exception {
+        Field instance = Gui.class.getDeclaredField("instance");
+        instance.setAccessible(true);
+        instance.set(null, null); // ensures no GUI instance exists during tests
+    }
+
     @Test //Tests message_sent_from_user
     void testMessageSentFromUserCorrectly() {
 
@@ -54,13 +63,6 @@ public class Main_controllerTest {
         assertNull(second);
     }
 
-    //Helping methods to access private methods in the gui
-    private Object getField(Object obj, String fieldName) throws Exception {
-        Field field = obj.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.get(obj);
-    }
-
     private void setField(Object obj, String fieldName, Object value) throws Exception {
         Field field = obj.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
@@ -89,4 +91,36 @@ public class Main_controllerTest {
         assertEquals("Hugo", model.getElementAt(1));
     }
 
+    @Test // getMessage() is thread safe, two threads should not both get the same message, only 1 should. Uses synchronized threads in ClientServer so test SHOULD pass.
+    void testGetMessageIsThreadSafe() throws InterruptedException {
+        Main_controller.message_sent_from_user("ThreadTest");
+
+        String[] results = new String[2];
+
+        Thread t1 = new Thread(() -> results[0] = Main_controller.getMessage());
+        Thread t2 = new Thread(() -> results[1] = Main_controller.getMessage());
+
+        t1.start();
+        t2.start();
+        
+        t1.join();
+        t2.join();
+
+        //Only one thread should have retrieved the message, the other should get null
+        boolean onlyOneGotIt = ("ThreadTest".equals(results[0]) && results[1] == null) || ("ThreadTest".equals(results[1]) && results[0] == null);
+        assertTrue(onlyOneGotIt);
+    }
+
+    @Test //Setting a new coordinator overwrites the old one
+    void testSetCoordinatorOverwritesPrevious() {
+        Gui gui = new Gui();
+        Main_controller.set_coordinator("Hugo");
+        Main_controller.set_coordinator("Amin");
+        assertEquals("Amin", gui.coordinatorUsername);
+    }
+
+    @Test //tests to ensure invalid ports aren't considered as valid.
+    void testIfInvalidPortIsCaught(){
+        assertDoesNotThrow(() -> Main_controller.joinServerButtonPressed("127.0.0.1", 1052005, "Hugoooooo"));
+    }
 }
