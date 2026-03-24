@@ -1,5 +1,7 @@
 {
-    "java.project.sourcePaths": ["chatapp/src"],
+    "java.project.sourcePaths": [
+        "src/controller"
+    ],
     "java.project.outputPath": "bin",
     "java.project.referencedLibraries": [
         "lib/**/*.jar"
