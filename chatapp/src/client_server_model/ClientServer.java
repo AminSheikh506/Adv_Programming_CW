@@ -103,11 +103,15 @@ class ClientThread implements Runnable{
                 else if (message.startsWith("userlist ")) {
                     //Handles the broadcast of the current active users.
                     broadcast(message);
-                    System.out.println("\n[SERVER] Recieved active user list from coordinator: \n" + message + "\n");
+                    System.out.println("[SERVER] Recieved active user list from coordinator: \n" + message + "\n");
+                }
+                else if (message.startsWith("timezone ")){
+                    broadcast(message);
+                    System.out.println("[SERVER] Coordinator timezone shared: " + message);
                 }
                 else {
                     //If the message doesnt start with the above prefixes, the message is from a user.
-                    broadcast(username + " " + message); //Space is a NECESSITY here due to how regex handling works of the recieved messages.
+                    broadcast(username + "|" + System.currentTimeMillis() + "|" + message); //"|" is a NECESSITY here due to how regex handling works of the recieved messages.
                     System.out.println("[SERVER] Message processed from " + username);
                 }
             }
@@ -269,6 +273,7 @@ class Server{
             java.util.concurrent.atomic.AtomicBoolean isCoordinator = new java.util.concurrent.atomic.AtomicBoolean(false);
             java.util.concurrent.atomic.AtomicReference<String> lastUserlistData = new java.util.concurrent.atomic.AtomicReference<>("");
             java.util.concurrent.ConcurrentHashMap<String, String[]> peerMap = new java.util.concurrent.ConcurrentHashMap<>();
+            java.util.concurrent.atomic.AtomicReference<String> coordinatorTimeZone = new java.util.concurrent.atomic.AtomicReference<>("UTC");
 
             //Responsible for sending messages to the clients with different prefixes depending on the nature of the message
             Thread listenerThread = new Thread(() -> {
@@ -293,6 +298,10 @@ class Server{
 
                         //Assigns a map to the coordinator so they can handle the online user list themselves.
                         if (isSelf) {
+                            synchronized(toServer){
+                                //Sends the timezone from the coordinator so all the users are synched to the same timezone.
+                                toServer.println("timezone " + java.time.ZoneId.systemDefault().getId());
+                            }
                             peerMap.clear();
                             peerMap.put(userUsername, new String[]{"coordinator", "-"}); // Coordinator's own entry
                             String lastData = lastUserlistData.get();
@@ -344,14 +353,26 @@ class Server{
                         controller.Main_controller.system_message(content);
                     }
 
-                    else if (message.startsWith(userUsername + " ")) {
+                    else if (message.startsWith("timezone ")){
+                        String zoneId = message.substring(9).trim(); //Removed the 'timezone' prefix.
+                        coordinatorTimeZone.set(zoneId);
+                        //Updates the GUIs timezone so the same timezone is displayed for all users.
+                        gui.Gui guiInstance = gui.Gui.getInstance();
+                        if (guiInstance != null) {
+                            guiInstance.coordinatorTimeZone = zoneId;
+                            System.out.println("[CLIENTSERVER] Coordinator timezone: " + zoneId);
+                        }
+                    }
+
+                    else if (message.startsWith(userUsername + "|")) {
                         // Own message echoed back — ignore
                     }
 
                     else {
-                        String[] sliced = message.split(" ", 2);
-                        if (sliced.length >= 2) {
-                            controller.Main_controller.displayMessage(sliced[1], sliced[0]);
+                        String[] sliced = message.split("\\|", 3);
+                        if (sliced.length >= 3) {
+                            String formattedTime = formatTimeStamp(sliced[1], coordinatorTimeZone.get());
+                            controller.Main_controller.displayMessage(sliced[2], sliced[0], formattedTime);
                         }
                     }
                 }
@@ -462,6 +483,19 @@ class Server{
         }
         synchronized (toServer) { toServer.println(sb.toString()); }
         System.out.println("[CLIENTSERVER] Coordinator broadcast: " + sb.toString());
+    }
+
+    private static String formatTimeStamp(String epochMillis, String zoneId){
+        try {
+            long millis = Long.parseLong(epochMillis);
+            java.time.Instant instant = java.time.Instant.ofEpochMilli(millis);
+            java.time.ZoneId zone = java.time.ZoneId.of(zoneId);
+            java.time.ZonedDateTime zdt = instant.atZone(zone);
+            return java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(zdt);
+        } catch (Exception e) {
+            return "";
+        }
+
     }
 }
 

@@ -97,6 +97,7 @@ public class Gui {
     JTextField MessageTypingBox;               // the message input box
     JButton sendBtn;                           // the send button
     List<UserInfo> pendingUserList = null;     // Cached list of users
+    public String coordinatorTimeZone = "UTC";        // Defaults the coordinators time zone to UTC if none is found.
 
     //Used to open each window where the last window was positioned.
     Point lastWindowPosition = null;
@@ -128,12 +129,14 @@ public class Gui {
         boolean outgoing; // true = outgoing (right side), false = incoming (left side)
         String sender;    // who sent it (username) (null for system messages)
         boolean isSystem; // true = yellow system notice for notification broadcast
+        String timestamp; // Holds the coordinators timestamp.
 
-        Message(String text, boolean outgoing, String sender, boolean isSystem) {
+        Message(String text, boolean outgoing, String sender, boolean isSystem, String timestamp) {
             this.text = text;
             this.outgoing = outgoing;
             this.sender = sender;
             this.isSystem = isSystem;
+            this.timestamp = timestamp;
         }
     }
 
@@ -972,7 +975,8 @@ public class Gui {
         ActionListener sendAction = e -> {
             String text = MessageTypingBox.getText().trim();
             if (!text.isEmpty()) {
-                addMessage(text, true, username);
+                String timestamp = java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(java.time.ZonedDateTime.now(java.time.ZoneId.of(coordinatorTimeZone)));
+                addMessage(text, true, username, timestamp);
                 controller.Main_controller.message_sent_from_user(text);
                 MessageTypingBox.setText("");
             }
@@ -1240,9 +1244,9 @@ public class Gui {
     return Math.max(90, Math.min(padded, maxWidth));
 }
 
-    void addMessage(String text, boolean outgoing, String sender) {
-        messageHistory.add(new Message(text, outgoing, sender, false));
-        drawBubble(text, outgoing, sender);
+    void addMessage(String text, boolean outgoing, String sender, String timestamp) {
+        messageHistory.add(new Message(text, outgoing, sender, false, timestamp));
+        drawBubble(text, outgoing, sender, timestamp);
     }
 
     void scrollToBottom() {
@@ -1254,12 +1258,18 @@ public class Gui {
         });
     }
 
-    void drawBubble(String text, boolean outgoing, String sender) {
+    void drawBubble(String text, boolean outgoing, String sender, String timestamp) {
 
         JLabel senderLabel = new JLabel("@" + sender);
         senderLabel.setFont(FONT_BOLD.deriveFont(11f));
         senderLabel.setForeground(COL_ACCENT);
         senderLabel.setBorder(new EmptyBorder(2, 4, 2, 4));
+
+        //Draws the timestamp text under the users message.
+        JLabel timeLabel = new JLabel(timestamp);
+        timeLabel.setFont(FONT_SMALL);
+        timeLabel.setForeground(COL_HINT);
+        timeLabel.setBorder(new EmptyBorder(2, 4, 4, 4));
 
         JPanel bubble = new JPanel(new BorderLayout()) {
 
@@ -1339,12 +1349,14 @@ public class Gui {
         float align = outgoing ? 1.0f : 0.0f;
         senderLabel.setAlignmentX(align);
         bubble.setAlignmentX(align);
+        timeLabel.setAlignmentX(align);
 
         JPanel stack = new JPanel();
         stack.setOpaque(false);
         stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
         stack.add(senderLabel);
         stack.add(bubble);
+        stack.add(timeLabel);
 
         JPanel row = new JPanel(new BorderLayout());
         row.setOpaque(false);
@@ -1382,7 +1394,7 @@ public class Gui {
     }
 
     public void addSystemMessage(String text) {
-        messageHistory.add(new Message(text, false, null, true));
+        messageHistory.add(new Message(text, false, null, true, ""));
         drawSystemRow(text);
     }
 
@@ -1814,9 +1826,9 @@ public class Gui {
         });
     }
 
-    public void displayRecievedMessage(String recievedMessage, String senderName) {
+    public void displayRecievedMessage(String recievedMessage, String senderName, String timestamp) {
         // Displays received messages from the controller into the users GUI.
-        addMessage(recievedMessage, false, senderName);
+        addMessage(recievedMessage, false, senderName, timestamp);
     }
 
     //  SECTION 16 - Main method

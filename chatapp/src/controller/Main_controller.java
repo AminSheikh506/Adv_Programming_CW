@@ -153,11 +153,11 @@ public class Main_controller {
         }
     }
 
-    public static void displayMessage(String recievedMessage, String senderName){
+    public static void displayMessage(String recievedMessage, String senderName, String timestamp){
         //Called from the ClientServer.java script to display a message to the GUI
         gui.Gui guiInstance = gui.Gui.getInstance(); // ask the GUI for itself because its an object.
         if (guiInstance != null) {
-            guiInstance.displayRecievedMessage(recievedMessage, senderName);
+            guiInstance.displayRecievedMessage(recievedMessage, senderName, timestamp);
         } else {
             System.err.println("[CONTROLLER] displayMessage(): GUI not initialised, message ignored");
         }
