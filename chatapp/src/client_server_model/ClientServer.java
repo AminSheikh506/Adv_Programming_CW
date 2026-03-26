@@ -111,6 +111,7 @@ class ClientThread implements Runnable{
                 }
                 else {
                     //If the message doesnt start with the above prefixes, the message is from a user.
+                    //THIS IS THE FORMAT THAT MESSAGES ARE SENT FROM EACH USER: username|time|message
                     broadcast(username + "|" + System.currentTimeMillis() + "|" + message); //"|" is a NECESSITY here due to how regex handling works of the recieved messages.
                     System.out.println("[SERVER] Message processed from " + username);
                 }
@@ -226,16 +227,18 @@ class ClientThread implements Runnable{
     	
     	String user = splitMsg[1];
     	String dm = splitMsg[2];
+        //out.println("system User: " + user + " Message: " + dm);
     	
         //Assigns the 'target' (recipient) of the DM as a ClientThread object
     	ClientThread target = clients.get(user);
     	
     	if (target == null) {
-    		out.println("system That member does not exist."); //deja vu
+    		out.println("system That member does not exist.");
     		return;
     	} 
         else {
-            target.out.println("DIRECT MESSAGE from " + username + "  DM: " + dm); //Use whitespaces here instead of real spaces so the username doesnt end up in the text field lol.
+            long timestamp = System.currentTimeMillis();
+            target.out.println("dm|" + username + "|" + timestamp + "|" + dm); //Use whitespaces here instead of real spaces so the username doesnt end up in the text field lol.
     	    out.println("DM to "+ user + "- "+ dm);
         }
     	
@@ -366,6 +369,18 @@ class Server{
 
                     else if (message.startsWith(userUsername + "|")) {
                         // Own message echoed back — ignore
+                    }
+                    
+                    else if (message.startsWith("dm|")) {
+                        String[] parts = message.split("\\|", 4);
+
+                        if (parts.length == 4) {
+                            String sender = parts[1];
+                            String time = formatTimeStamp(parts[2], coordinatorTimeZone.get());
+                            String dmMessage = parts[3];
+
+                            controller.Main_controller.displayMessage(dmMessage, sender + " SENT YOU A DM", time);
+                        }
                     }
 
                     else {
