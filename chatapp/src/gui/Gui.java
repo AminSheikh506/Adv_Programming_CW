@@ -1221,28 +1221,28 @@ public class Gui {
 
     int getBubbleTextWidth(String text, Font font, int maxWidth) {
 
-    FontMetrics fm;
+        FontMetrics fm;
 
-    if (bubbleContainer != null) {
-        fm = bubbleContainer.getFontMetrics(font);
-    } else {
-        BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
-        fm = g2.getFontMetrics(font);
-        g2.dispose();
+        if (bubbleContainer != null) {
+            fm = bubbleContainer.getFontMetrics(font);
+        } else {
+            BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = img.createGraphics();
+            fm = g2.getFontMetrics(font);
+            g2.dispose();
+        }
+
+        String[] lines = text.split("\n");
+        int longestLine = 0;
+
+        for (String line : lines) {
+            longestLine = Math.max(longestLine, fm.stringWidth(line));
+        }
+
+        int padded = longestLine + 24;
+
+        return Math.max(90, Math.min(padded, maxWidth));
     }
-
-    String[] lines = text.split("\n");
-    int longestLine = 0;
-
-    for (String line : lines) {
-        longestLine = Math.max(longestLine, fm.stringWidth(line));
-    }
-
-    int padded = longestLine + 24;
-
-    return Math.max(90, Math.min(padded, maxWidth));
-}
 
     void addMessage(String text, boolean outgoing, String sender, String timestamp) {
         messageHistory.add(new Message(text, outgoing, sender, false, timestamp));
@@ -1260,6 +1260,7 @@ public class Gui {
 
     void drawBubble(String text, boolean outgoing, String sender, String timestamp) {
 
+        //Draws the name above the label.
         JLabel senderLabel = new JLabel("@" + sender);
         senderLabel.setFont(FONT_BOLD.deriveFont(11f));
         senderLabel.setForeground(COL_ACCENT);
@@ -1283,7 +1284,7 @@ public class Gui {
                 ta.setFont(FONT_NORMAL);
                 ta.setOpaque(false);
                 ta.setForeground(COL_TEXT);
-                ta.setBorder(new EmptyBorder(9, 12, 4, 12));
+                ta.setBorder(new EmptyBorder(7, 10, 5, 10));
                 setOpaque(false);
                 add(ta, BorderLayout.CENTER);
             }
@@ -1298,12 +1299,13 @@ public class Gui {
                 String[] lines = text.split("\n");
                 int naturalTextW = 0;
                 for (String line : lines) naturalTextW = Math.max(naturalTextW, fm.stringWidth(line));
-                int naturalW = Math.min(naturalTextW + 30, maxW);
+                int naturalW = Math.min(naturalTextW + 20, maxW);
 
-                int targetW = Math.max(naturalW, 90);
+                //Shortest bubble width.
+                int targetW = Math.max(naturalW, 20);
 
                 //Added a small safety margin so the rounded stroke never sits exactly on the component edge. This only seems to be a Windows issue for some reason.
-                final int SAFETY_MARGIN = 6;
+                final int SAFETY_MARGIN = 2;
                 int finalW = targetW + SAFETY_MARGIN;
 
                 //Let the text area calculate height for the inner width (subtract ta insets already included)
