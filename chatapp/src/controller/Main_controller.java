@@ -233,8 +233,6 @@ public class Main_controller {
         DisplayErrorMessage.displayError(error_message);
     }
 
-    
-
     public static void handle_rejection(String reason) {
         //Handles errors if the user inputs an incorrect PORT or username.
         gui.Gui guiInstance = gui.Gui.getInstance();

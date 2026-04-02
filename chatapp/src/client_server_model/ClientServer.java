@@ -319,12 +319,12 @@ class Server{
                         }
                     }
 
-                    //If someone joins, the users info is sent to the coordinator in the format 'USERNAME|IP|PORT'
+                    //If someone joins, the users info is sent to the coordinator in the format 'peerinfo USERNAME|IP|PORT'
                     else if (message.startsWith("peerinfo ") && isCoordinator.get()) {
                         String payload = message.substring(9); // strip peerinfo prefix
                         String[] parts = payload.split("\\|", 3);
                         if (parts.length >= 3) {
-                            peerMap.put(parts[0], new String[]{parts[1], parts[2]});
+                            peerMap.put(parts[0], new String[]{parts[1], parts[2]});    //Adds the user to a list of all the users who are currently connected.
                             broadcastUserList(toServer, peerMap, userUsername);
                         }
                     }
@@ -436,7 +436,6 @@ class Server{
         }
     }
 
-
     public static String get_ip_address() throws UnknownHostException {
         //Returns the private IP address of the user as a string. A seperate method was used to keep code clean.
         InetAddress localhost = InetAddress.getLocalHost();
@@ -487,12 +486,17 @@ class Server{
     }
 
     private static void broadcastUserList(PrintWriter toServer, java.util.concurrent.ConcurrentHashMap<String, String[]> peerMap, String coordinatorName) {
+        /*
+        Adds the new client to the list of current active users.
+        Data format: "userlist coordinatorName|user1:ip1:port1,user2:ip2:port2,userN:ipN:portN..."
+        */
+        
         StringBuilder sb = new StringBuilder("userlist ");
         sb.append(coordinatorName).append("|");
         boolean first = true;
         for (java.util.Map.Entry<String, String[]> entry : peerMap.entrySet()) {
             if (!first) sb.append(",");
-            // Data format: "coordName|user1:ip1:port1,user2:ip2:port2,..."
+        
             sb.append(entry.getKey()).append(":").append(entry.getValue()[0]).append(":").append(entry.getValue()[1]);
             first = false;
         }

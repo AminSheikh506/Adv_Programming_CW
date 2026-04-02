@@ -40,11 +40,9 @@ public class ClientThreadTest {
           //Checks if the constructor works correctly.
     void clientThreadConstructorWorksWithFakeSocket() throws Exception {
 
-        ByteArrayInputStream fakeInput =
-                new ByteArrayInputStream("Amin\n".getBytes());
+        ByteArrayInputStream fakeInput = new ByteArrayInputStream("Amin\n".getBytes()); //Uses placeholder 'amin' to satisfy the Scanners requirements that the input isn't null/broken.
+        ByteArrayOutputStream fakeOutput = new ByteArrayOutputStream();
 
-        ByteArrayOutputStream fakeOutput =
-                new ByteArrayOutputStream();
         //Create the fake socket
         Socket fakeSocket = new FakeSocket(fakeInput, fakeOutput);
         //Call the constructor
